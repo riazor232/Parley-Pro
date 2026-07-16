@@ -176,10 +176,10 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
     db.query(models.Fixture).delete()
     
     fixtures_created = []
-    # Process up to 100 matches to show matches for today and tomorrow
+    # Process up to 100 matches to show matches for the next 5 days
     from datetime import datetime, timedelta
     now_utc = datetime.utcnow()
-    two_days_later = now_utc + timedelta(days=2)
+    five_days_later = now_utc + timedelta(days=5)
     
     count = 0
     for item in data:
@@ -191,8 +191,8 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
             try:
                 time_str = raw_time.replace('Z', '')
                 dt_utc = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
-                # Filter out matches that are more than 2 days in the future (hoy y mañana)
-                if dt_utc > two_days_later:
+                # Filter out matches that are more than 5 days in the future
+                if dt_utc > five_days_later:
                     continue
             except:
                 pass
