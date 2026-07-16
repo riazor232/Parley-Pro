@@ -15,6 +15,9 @@ export function OddsTable({ fixtures, selectedFixtureIds, onAddFixture }: OddsTa
   const [leagueFilter, setLeagueFilter] = useState("todos");
   const [dateFilter, setDateFilter] = useState("todos");
   const [sortConfig, setSortConfig] = useState<{ key: keyof Fixture; direction: "asc" | "desc" } | null>(null);
+  
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // Get unique leagues for filter dropdown
   const leagues = Array.from(new Set(fixtures.map((f) => f.league)));
@@ -265,26 +268,53 @@ export function OddsTable({ fixtures, selectedFixtureIds, onAddFixture }: OddsTa
                     </span>
                   </td>
                   <td className="p-4 text-center">
-                    <button
-                      onClick={() => onAddFixture(fixture)}
-                      disabled={isSelected}
-                      className={`inline-flex items-center justify-center p-2 rounded-lg transition-all ${
-                        isSelected
-                          ? "bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-zinc-650 cursor-not-allowed border border-gray-200 dark:border-zinc-700"
-                          : "bg-[#10b981] hover:bg-emerald-600 text-white cursor-pointer hover:scale-105 active:scale-95 shadow-sm shadow-green-150"
-                      }`}
-                      title={isSelected ? "Ya añadido al boleto" : "Añadir al boleto"}
-                    >
-                      {isSelected ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={async (e) => {
+                          const btn = e.currentTarget;
+                          const originalText = btn.innerHTML;
+                          btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>';
+                          btn.disabled = true;
+                          try {
+                            const { analyzeFixture } = await import('@/lib/api');
+                            const res = await analyzeFixture(fixture.id);
+                            setAiAnalysis(res.analysis);
+                            setIsAiModalOpen(true);
+                          } catch (err) {
+                            alert("Error al analizar con IA");
+                          } finally {
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                          }
+                        }}
+                        className="inline-flex items-center justify-center p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white cursor-pointer hover:scale-105 active:scale-95 shadow-sm transition-all"
+                        title="Analizar con IA"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                      )}
-                    </button>
+                      </button>
+                      <button
+                        onClick={() => onAddFixture(fixture)}
+                        disabled={isSelected}
+                        className={`inline-flex items-center justify-center p-2 rounded-lg transition-all ${
+                          isSelected
+                            ? "bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-zinc-650 cursor-not-allowed border border-gray-200 dark:border-zinc-700"
+                            : "bg-[#10b981] hover:bg-emerald-600 text-white cursor-pointer hover:scale-105 active:scale-95 shadow-sm shadow-green-150"
+                        }`}
+                        title={isSelected ? "Ya añadido al boleto" : "Añadir al boleto"}
+                      >
+                        {isSelected ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -299,6 +329,41 @@ export function OddsTable({ fixtures, selectedFixtureIds, onAddFixture }: OddsTa
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           No hay partidos disponibles que coincidan con la búsqueda.
+        </div>
+      )}
+
+      {/* AI Analysis Modal */}
+      {isAiModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
+            <div className="flex justify-between items-center p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80">
+              <h3 className="text-xl font-bold flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Análisis Inteligente (Gemini)
+              </h3>
+              <button 
+                onClick={() => setIsAiModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto prose dark:prose-invert max-w-none text-sm whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">
+              {aiAnalysis || "Generando..."}
+            </div>
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-end">
+              <button 
+                onClick={() => setIsAiModalOpen(false)}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

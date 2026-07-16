@@ -90,3 +90,13 @@ export async function getServerStatus(): Promise<{ data_source: string }> {
   }
   return res.json();
 }
+
+export async function analyzeFixture(id: number): Promise<{ analysis: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/fixtures/${id}/analyze`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw new Error("Failed to analyze fixture");
+  }
+  return res.json();
+}

@@ -61,3 +61,11 @@ def delete_parley(parley_id: int, db: Session = Depends(get_db)):
 @app.get("/api/status")
 def get_status():
     return {"data_source": services.data_source}
+
+class AnalyzeResponse(schemas.BaseModel):
+    analysis: str
+
+@app.post("/api/fixtures/{fixture_id}/analyze", response_model=AnalyzeResponse)
+def analyze_fixture(fixture_id: int, db: Session = Depends(get_db)):
+    analysis = services.analyze_fixture(db, fixture_id)
+    return {"analysis": analysis}

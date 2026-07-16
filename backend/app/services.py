@@ -338,3 +338,93 @@ def delete_saved_parley(db: Session, parley_id: int):
         db.commit()
         return True
     return False
+
+def analyze_fixture(db: Session, fixture_id: int):
+    import google.generativeai as genai
+    fixture = db.query(models.Fixture).filter(models.Fixture.id == fixture_id).first()
+    if not fixture:
+        return "Partido no encontrado."
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        return "Error: API Key de Gemini no configurada."
+
+    genai.configure(api_key=gemini_key)
+    
+    prompt = f"""# Prompt de Modelado — Ligas Nacionales / Copas de Clubes (v4-Club)
+
+Plantilla derivada de la metodología v4 usada para el Mundial 2026, adaptada para fútbol de clubes.
+
+## Cómo usarlo
+
+Cuando pidas el análisis de un partido, entrega:
+
+1. **Liga o torneo**
+2. **Equipos** (local vs. visitante)
+3. **Fecha/hora** del partido
+4. **Cuotas del mercado** (captura de pantalla o texto — sirve para calcular el edge)
+
+## Checklist de ajustes contextuales (se aplica antes de calcular)
+
+**1. Altitud**
+- Altitud de la sede del local
+- Altitud de origen del visitante (¿aclimatado o choque extremo, ej. equipo de tierras bajas visitando Potosí/La Paz/Quito?)
+- Si la diferencia es significativa (~1000m+), sube lambda_home y baja lambda_away
+
+**2. Estructura del torneo**
+- ¿Liga regular, fase de grupos + hexagonal/cuadrangular (como LigaPro), o llave de eliminación?
+- ¿Qué se juega cada equipo en la tabla (título, cupo continental, descenso, o trámite)?
+- Afecta el estilo esperado del partido y por tanto el rho (correlación Dixon-Coles) y los lambdas
+
+**3. Forma reciente con decaimiento temporal**
+- Últimos 5-10 partidos de cada equipo (goles a favor/en contra, resultados)
+- Más peso a lo reciente que al promedio de toda la temporada
+- Rachas: invicto, sin ganar, sin anotar, etc.
+
+**4. Congestión de calendario**
+- ¿Jugaron copa continental entre semana?
+- Días de descanso desde el último partido
+- Reduce lambda del equipo con más desgaste
+
+**5. Bajas y plantilla**
+- Lesiones, expulsados, ventana de fichajes reciente (venta de jugador clave)
+- Ajuste manual del lambda si hay ausencia relevante confirmada
+
+**6. Calidad y disponibilidad de datos**
+- Ligas con poca cobertura (Ecuador, Bolivia, etc.) → menos xG público, más dependencia de goles crudos
+- Shrinkage bayesiano más fuerte hacia el promedio de liga cuando la muestra es chica
+
+## Metodología de cálculo
+
+1. Estimar lambda_home y lambda_away combinando fuerza base + forma reciente + ajustes de altitud/fatiga/bajas
+2. Corrección Dixon-Coles (rho, típicamente entre -0.03 y -0.08) para resultados bajos (0-0, 1-0, 0-1, 1-1)
+3. Construir matriz de Poisson bivariada (0-8 goles por lado) vía Python
+4. Derivar: 1X2, doble oportunidad, BTTS, Over/Under 1.5 y 2.5, top marcadores probables
+5. Comparar contra cuotas de mercado → probabilidad implícita y edge en puntos porcentuales
+6. Recomendar la apuesta con mejor combinación de probabilidad alta + edge positivo real (no solo la de mayor probabilidad)
+
+## Formato de salida esperado
+
+- Ajustes de contexto aplicados (breve)
+- Tabla de probabilidades del modelo
+- Top marcadores
+- Comparación vs. mercado con edges
+- Recomendación de apuesta(s) con justificación
+
+---
+
+**DATOS DEL PARTIDO PARA ANALIZAR:**
+Liga: {fixture.league}
+Partido: {fixture.match_name}
+Fecha: {fixture.date_time}
+Cuota Favorito: {fixture.odds} ({fixture.market})
+Probabilidad Implícita calculada previamente: {round(fixture.probability * 100, 2)}%
+"""
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error al generar análisis con Gemini: {{e}}"
+
