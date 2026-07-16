@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+@theme {
+  --color-football-green: #2ecc71;
+  --color-football-dark: #1e3932;
+  --color-football-light: #f4fdf8;
+}
+
+body {
+  background-color: var(--color-football-light);
+  color: var(--color-football-dark);
+}
