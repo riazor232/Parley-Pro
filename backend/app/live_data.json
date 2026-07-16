@@ -1,0 +1,122 @@
+[
+  {
+    "id": "arg_cup_1",
+    "sport_title": "Copa Argentina",
+    "commence_time": "2026-07-17T00:00:00Z",
+    "home_team": "Sarmiento",
+    "away_team": "Boca Juniors",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Sarmiento", "price": 4.50}, {"name": "Boca Juniors", "price": 1.75}, {"name": "Draw", "price": 3.20}]}]}]
+  },
+  {
+    "id": "arg_cup_2",
+    "sport_title": "Copa Argentina",
+    "commence_time": "2026-07-17T02:00:00Z",
+    "home_team": "Racing Club",
+    "away_team": "Defensa y Justicia",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Racing Club", "price": 1.95}, {"name": "Defensa y Justicia", "price": 3.60}, {"name": "Draw", "price": 3.10}]}]}]
+  },
+  {
+    "id": "brazil_1",
+    "sport_title": "Brasileirão",
+    "commence_time": "2026-07-17T01:00:00Z",
+    "home_team": "Botafogo",
+    "away_team": "Santos",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Botafogo", "price": 2.10}, {"name": "Santos", "price": 3.40}, {"name": "Draw", "price": 3.00}]}]}]
+  },
+  {
+    "id": "brazil_2",
+    "sport_title": "Brasileirão",
+    "commence_time": "2026-07-16T22:30:00Z",
+    "home_team": "Vitória",
+    "away_team": "Vasco da Gama",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Vitória", "price": 2.50}, {"name": "Vasco da Gama", "price": 2.65}, {"name": "Draw", "price": 3.10}]}]}]
+  },
+  {
+    "id": "mx_1",
+    "sport_title": "Liga MX",
+    "commence_time": "2026-07-17T03:00:00Z",
+    "home_team": "Tijuana",
+    "away_team": "Tigres UANL",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Tijuana", "price": 3.20}, {"name": "Tigres UANL", "price": 2.10}, {"name": "Draw", "price": 3.40}]}]}]
+  },
+  {
+    "id": "mx_2",
+    "sport_title": "Liga MX",
+    "commence_time": "2026-07-17T01:00:00Z",
+    "home_team": "Necaxa",
+    "away_team": "Atlante",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Necaxa", "price": 1.85}, {"name": "Atlante", "price": 4.10}, {"name": "Draw", "price": 3.20}]}]}]
+  },
+  {
+    "id": "mls_1",
+    "sport_title": "MLS",
+    "commence_time": "2026-07-17T02:30:00Z",
+    "home_team": "Seattle Sounders",
+    "away_team": "Portland Timbers",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Seattle Sounders", "price": 2.00}, {"name": "Portland Timbers", "price": 3.40}, {"name": "Draw", "price": 3.50}]}]}]
+  },
+  {
+    "id": "mls_2",
+    "sport_title": "MLS",
+    "commence_time": "2026-07-17T00:30:00Z",
+    "home_team": "CF Montréal",
+    "away_team": "Toronto FC",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "CF Montréal", "price": 2.20}, {"name": "Toronto FC", "price": 3.10}, {"name": "Draw", "price": 3.20}]}]}]
+  },
+  {
+    "id": "mls_3",
+    "sport_title": "MLS",
+    "commence_time": "2026-07-17T01:30:00Z",
+    "home_team": "St. Louis City",
+    "away_team": "Sporting Kansas City",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "St. Louis City", "price": 2.15}, {"name": "Sporting Kansas City", "price": 3.15}, {"name": "Draw", "price": 3.30}]}]}]
+  },
+  {
+    "id": "mls_4",
+    "sport_title": "MLS",
+    "commence_time": "2026-07-17T01:30:00Z",
+    "home_team": "Chicago Fire",
+    "away_team": "Vancouver Whitecaps",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Chicago Fire", "price": 2.45}, {"name": "Vancouver Whitecaps", "price": 2.70}, {"name": "Draw", "price": 3.40}]}]}]
+  },
+  {
+    "id": "uefa_1",
+    "sport_title": "UEFA Qualifiers",
+    "commence_time": "2026-07-16T17:30:00Z",
+    "home_team": "Universitatea Cluj",
+    "away_team": "Dynamo Kyiv",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Universitatea Cluj", "price": 3.80}, {"name": "Dynamo Kyiv", "price": 1.90}, {"name": "Draw", "price": 3.30}]}]}]
+  },
+  {
+    "id": "uefa_2",
+    "sport_title": "UEFA Qualifiers",
+    "commence_time": "2026-07-16T18:00:00Z",
+    "home_team": "Zilina",
+    "away_team": "Hajduk Split",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Zilina", "price": 3.10}, {"name": "Hajduk Split", "price": 2.25}, {"name": "Draw", "price": 3.20}]}]}]
+  },
+  {
+    "id": "uefa_3",
+    "sport_title": "UEFA Qualifiers",
+    "commence_time": "2026-07-16T19:00:00Z",
+    "home_team": "Ferencváros",
+    "away_team": "Vojvodina",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Ferencváros", "price": 1.65}, {"name": "Vojvodina", "price": 5.00}, {"name": "Draw", "price": 3.60}]}]}]
+  },
+  {
+    "id": "uefa_4",
+    "sport_title": "UEFA Qualifiers",
+    "commence_time": "2026-07-16T20:00:00Z",
+    "home_team": "Derry City",
+    "away_team": "CSKA Sofia",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Derry City", "price": 4.20}, {"name": "CSKA Sofia", "price": 1.75}, {"name": "Draw", "price": 3.50}]}]}]
+  },
+  {
+    "id": "ecua_1",
+    "sport_title": "LigaPro Ecuador",
+    "commence_time": "2026-07-16T23:00:00Z",
+    "home_team": "Aucas",
+    "away_team": "Independiente del Valle",
+    "bookmakers": [{"markets": [{"outcomes": [{"name": "Aucas", "price": 2.80}, {"name": "Independiente del Valle", "price": 2.30}, {"name": "Draw", "price": 3.10}]}]}]
+  }
+]
