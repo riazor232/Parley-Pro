@@ -3,7 +3,7 @@ import requests
 import random
 from sqlalchemy.orm import Session
 from . import models, schemas
-from .top_clubs import TOP_125_CLUBS
+from .top_clubs import TOP_300_CLUBS
 
 data_source = "API Real"
 
@@ -72,8 +72,8 @@ def search_fixtures(db: Session, query: str):
         home_team = item.get('home_team', '')
         away_team = item.get('away_team', '')
         
-        # Check Top 125
-        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_125_CLUBS)
+        # Check Top 300
+        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
         if not is_top_club:
             continue
             
@@ -206,8 +206,8 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
         home_team = item.get('home_team', '')
         away_team = item.get('away_team', '')
         
-        # Filter by Top 125 Clubs
-        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_125_CLUBS)
+        # Filter by Top 300 Clubs
+        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
         if not is_top_club:
             continue
             
