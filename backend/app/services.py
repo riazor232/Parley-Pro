@@ -3,6 +3,7 @@ import requests
 import random
 from sqlalchemy.orm import Session
 from . import models, schemas
+from .top_clubs import TOP_125_CLUBS
 
 data_source = "API Real"
 
@@ -62,7 +63,21 @@ def search_fixtures(db: Session, query: str):
     # Find matching items
     matching_items = []
     for item in data:
-        if query_lower in item['home_team'].lower() or query_lower in item['away_team'].lower():
+        # Check if it's soccer
+        sport_key = item.get('sport_key', '')
+        sport_title = item.get('sport_title', '').lower()
+        if not sport_key.startswith('soccer') and 'soccer' not in sport_title and 'futbol' not in sport_title and 'fútbol' not in sport_title:
+            continue
+            
+        home_team = item.get('home_team', '')
+        away_team = item.get('away_team', '')
+        
+        # Check Top 125
+        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_125_CLUBS)
+        if not is_top_club:
+            continue
+            
+        if query_lower in home_team.lower() or query_lower in away_team.lower():
             matching_items.append(item)
             if len(matching_items) >= 5:
                 break
@@ -182,8 +197,22 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
             except:
                 pass
         
+        # Filter by Soccer
+        sport_key = item.get('sport_key', '')
+        sport_title = item.get('sport_title', '').lower()
+        if not sport_key.startswith('soccer') and 'soccer' not in sport_title and 'futbol' not in sport_title and 'fútbol' not in sport_title:
+            continue
+            
+        home_team = item.get('home_team', '')
+        away_team = item.get('away_team', '')
+        
+        # Filter by Top 125 Clubs
+        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_125_CLUBS)
+        if not is_top_club:
+            continue
+            
         count += 1
-        match_name = f"{item['home_team']} vs {item['away_team']}"
+        match_name = f"{home_team} vs {away_team}"
         league = item.get('sport_title', 'Soccer')
         
         # Format the time nicely if available and convert to GMT-6
