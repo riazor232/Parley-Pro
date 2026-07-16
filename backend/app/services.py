@@ -23,7 +23,8 @@ def fetch_and_store_data(db: Session):
         return db.query(models.Fixture).all()
         
     try:
-        return fetch_real_fixtures(db, odds_api_key)
+        all_fixtures = fetch_real_fixtures(db, odds_api_key)
+        return gemini_filter_fixtures(all_fixtures)
     except Exception as e:
         print(f"Error fetching real fixtures from external API: {e}")
         return []
@@ -35,7 +36,8 @@ def sync_fixtures(db: Session):
         data_source = "Error: Sin API Key"
         return []
     try:
-        return fetch_real_fixtures(db, odds_api_key)
+        all_fixtures = fetch_real_fixtures(db, odds_api_key)
+        return gemini_filter_fixtures(all_fixtures)
     except Exception as e:
         print(f"Error syncing fixtures: {e}")
         return []
@@ -176,10 +178,10 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
     db.query(models.Fixture).delete()
     
     fixtures_created = []
-    # Process up to 100 matches to show matches for the next 5 days
-    from datetime import datetime, timedelta
-    now_utc = datetime.utcnow()
-    five_days_later = now_utc + timedelta(days=5)
+    from datetime import datetime, timedelta, timezone
+    now_utc = datetime.now(timezone.utc)
+    # Only show matches for today and tomorrow (2 days window)
+    two_days_later = now_utc + timedelta(days=2)
     
     count = 0
     for item in data:
@@ -189,10 +191,10 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
         raw_time = item.get('commence_time', '')
         if raw_time:
             try:
-                time_str = raw_time.replace('Z', '')
-                dt_utc = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
-                # Filter out matches that are more than 5 days in the future
-                if dt_utc > five_days_later:
+                time_str = raw_time.replace('Z', '+00:00')
+                dt_utc = datetime.fromisoformat(time_str)
+                # Filter: only today and tomorrow
+                if dt_utc > two_days_later or dt_utc < now_utc - timedelta(hours=1):
                     continue
             except:
                 pass
@@ -288,6 +290,62 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
     data_source = "API Real"
     return fixtures_created
 
+def gemini_filter_fixtures(fixtures: list) -> list:
+    """
+    Usa Gemini para seleccionar los mejores partidos del día actual y el siguiente.
+    Recibe una lista de fixtures ya almacenados y devuelve los IDs de los más relevantes.
+    Si Gemini no está disponible, devuelve todos los fixtures sin filtrar.
+    """
+    import google.generativeai as genai
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key or not fixtures:
+        return fixtures
+
+    try:
+        genai.configure(api_key=gemini_key)
+
+        fixtures_summary = "\n".join([
+            f"ID:{f.id} | {f.match_name} | Liga: {f.league} | Fecha: {f.date_time} | Mercado: {f.market} | Cuota: {f.odds} | Prob: {round(f.probability * 100, 1)}% | Riesgo: {f.risk_level}"
+            for f in fixtures
+        ])
+
+        prompt = f"""Eres un experto en análisis de apuestas deportivas de fútbol.
+A continuación tienes una lista de partidos de fútbol de hoy y mañana con sus cuotas y probabilidades.
+Tu tarea es seleccionar los mejores partidos para apostar, priorizando:
+1. Partidos con riesgo "Verde" y probabilidad alta (>65%)
+2. Partidos de ligas reconocidas 
+3. Cuotas con valor (edge positivo implícito)
+4. Diversidad de ligas (no repetir la misma liga más de 2 veces)
+
+Lista de partidos disponibles:
+{fixtures_summary}
+
+Responde ÚNICAMENTE con los IDs de los partidos seleccionados separados por comas, sin texto adicional.
+Selecciona entre 5 y 15 partidos máximo. Ejemplo de respuesta: 3,7,12,18,22
+"""
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+
+        # Parse comma-separated IDs
+        selected_ids = set()
+        for part in raw.split(','):
+            part = part.strip().replace('ID:', '').strip()
+            if part.isdigit():
+                selected_ids.add(int(part))
+
+        if selected_ids:
+            filtered = [f for f in fixtures if f.id in selected_ids]
+            print(f"Gemini seleccionó {len(filtered)} partidos de {len(fixtures)} disponibles")
+            return filtered if filtered else fixtures
+        return fixtures
+    except Exception as e:
+        print(f"Gemini filter error: {e}")
+        return fixtures
+
 def generate_mock_data(db: Session):
     global data_source
     data_source = "Simulados"
@@ -340,7 +398,7 @@ def delete_saved_parley(db: Session, parley_id: int):
     return False
 
 def analyze_fixture(db: Session, fixture_id: int):
-    import google.generativeai as genai
+    import groq
     from dotenv import load_dotenv
     load_dotenv() # Force reload .env
     
@@ -348,11 +406,11 @@ def analyze_fixture(db: Session, fixture_id: int):
     if not fixture:
         return "Partido no encontrado."
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        return "Error: API Key de Gemini no configurada. Por favor reinicia el backend."
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        return "Error: API Key de Groq no configurada. Por favor reinicia el backend."
 
-    genai.configure(api_key=gemini_key)
+    client = groq.Client(api_key=groq_key)
     
     prompt = f"""# Prompt de Modelado — Ligas Nacionales / Copas de Clubes (v4-Club)
 
@@ -425,9 +483,13 @@ Probabilidad Implícita calculada previamente: {round(fixture.probability * 100,
 """
     
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
-        return response.text
+        completion = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        return completion.choices[0].message.content
     except Exception as e:
-        return f"Error al generar análisis con Gemini: {{e}}"
+        return f"Error al generar análisis con Groq: {e}"
 

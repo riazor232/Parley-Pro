@@ -334,14 +334,14 @@ export function OddsTable({ fixtures, selectedFixtureIds, onAddFixture }: OddsTa
 
       {/* AI Analysis Modal */}
       {isAiModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
-            <div className="flex justify-between items-center p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80">
-              <h3 className="text-xl font-bold flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-3xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
+            <div className="flex justify-between items-center p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80">
+              <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Análisis Inteligente (Gemini)
+                Análisis Inteligente (Groq)
               </h3>
               <button 
                 onClick={() => setIsAiModalOpen(false)}
@@ -352,13 +352,13 @@ export function OddsTable({ fixtures, selectedFixtureIds, onAddFixture }: OddsTa
                 </svg>
               </button>
             </div>
-            <div className="p-6 overflow-y-auto prose dark:prose-invert max-w-none text-sm whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">
+            <div className="p-4 sm:p-6 overflow-y-auto prose dark:prose-invert max-w-none text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">
               {aiAnalysis || "Generando..."}
             </div>
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-end">
+            <div className="p-3 sm:p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-end">
               <button 
                 onClick={() => setIsAiModalOpen(false)}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                className="px-4 py-2 sm:px-5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
               >
                 Cerrar
               </button>
