@@ -72,10 +72,10 @@ def search_fixtures(db: Session, query: str):
         home_team = item.get('home_team', '')
         away_team = item.get('away_team', '')
         
-        # Check Top 300
-        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
-        if not is_top_club:
-            continue
+        # Check Top 300 (COMENTADO para traer todos los partidos)
+        # is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
+        # if not is_top_club:
+        #     continue
             
         if query_lower in home_team.lower() or query_lower in away_team.lower():
             matching_items.append(item)
@@ -176,10 +176,10 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
     db.query(models.Fixture).delete()
     
     fixtures_created = []
-    # Process up to 100 matches to show top worldwide leagues (covers 3 days usually)
+    # Process up to 100 matches to show matches for today and tomorrow
     from datetime import datetime, timedelta
     now_utc = datetime.utcnow()
-    three_days_later = now_utc + timedelta(days=3)
+    two_days_later = now_utc + timedelta(days=2)
     
     count = 0
     for item in data:
@@ -191,8 +191,8 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
             try:
                 time_str = raw_time.replace('Z', '')
                 dt_utc = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
-                # Filter out matches that are more than 3 days in the future
-                if dt_utc > three_days_later:
+                # Filter out matches that are more than 2 days in the future (hoy y mañana)
+                if dt_utc > two_days_later:
                     continue
             except:
                 pass
@@ -206,10 +206,10 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
         home_team = item.get('home_team', '')
         away_team = item.get('away_team', '')
         
-        # Filter by Top 300 Clubs
-        is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
-        if not is_top_club:
-            continue
+        # Filter by Top 300 Clubs (COMENTADO para traer todos los partidos)
+        # is_top_club = any(club.lower() in home_team.lower() or club.lower() in away_team.lower() for club in TOP_300_CLUBS)
+        # if not is_top_club:
+        #     continue
             
         count += 1
         match_name = f"{home_team} vs {away_team}"
