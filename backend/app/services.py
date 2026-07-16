@@ -341,13 +341,16 @@ def delete_saved_parley(db: Session, parley_id: int):
 
 def analyze_fixture(db: Session, fixture_id: int):
     import google.generativeai as genai
+    from dotenv import load_dotenv
+    load_dotenv() # Force reload .env
+    
     fixture = db.query(models.Fixture).filter(models.Fixture.id == fixture_id).first()
     if not fixture:
         return "Partido no encontrado."
 
     gemini_key = os.getenv("GEMINI_API_KEY")
     if not gemini_key:
-        return "Error: API Key de Gemini no configurada."
+        return "Error: API Key de Gemini no configurada. Por favor reinicia el backend."
 
     genai.configure(api_key=gemini_key)
     
