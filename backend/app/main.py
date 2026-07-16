@@ -62,6 +62,11 @@ def delete_parley(parley_id: int, db: Session = Depends(get_db)):
 def get_status():
     return {"data_source": services.data_source}
 
+@app.post("/api/fixtures/gemini-discover")
+def gemini_discover(db: Session = Depends(get_db)):
+    result = services.gemini_discover_matches(db)
+    return result
+
 class AnalyzeResponse(schemas.BaseModel):
     analysis: str
 

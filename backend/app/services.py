@@ -290,6 +290,124 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
     data_source = "API Real"
     return fixtures_created
 
+def gemini_discover_matches(db: Session) -> dict:
+    """
+    Usa Gemini con Google Search para encontrar TODOS los partidos de hoy y mañana,
+    y estimar cuotas basadas en la fuerza relativa de los equipos.
+    Guarda los partidos directamente en la base de datos.
+    """
+    import google.generativeai as genai
+    from google.generativeai import types as genai_types
+    from dotenv import load_dotenv
+    import json
+    from datetime import datetime, timedelta
+    load_dotenv()
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        return {"status": "error", "message": "GEMINI_API_KEY no configurada.", "count": 0}
+
+    try:
+        genai.configure(api_key=gemini_key)
+        
+        today = datetime.now()
+        tomorrow = today + timedelta(days=1)
+        today_str = today.strftime("%A %d de %B de %Y")
+        tomorrow_str = tomorrow.strftime("%A %d de %B de %Y")
+
+        prompt = f"""Busca en internet todos los partidos de fútbol que se juegan HOY ({today_str}) y MAÑANA ({tomorrow_str}) a nivel mundial.
+Incluye partidos de: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Conference League, Liga MX, MLS, Copa Libertadores, Copa Sudamericana, Eredivisie, Primeira Liga, Liga Pro Ecuador, División Profesional Bolivia, y cualquier otra liga activa que encuentres.
+
+Para cada partido, estima las cuotas decimales (odds) basándote en:
+- Historial reciente de los equipos
+- Posición en la tabla
+- Fortaleza ofensiva y defensiva conocida
+- Local vs Visitante (el local generalmente tiene ventaja)
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta (sin texto adicional, sin markdown, solo el JSON):
+{{
+  "matches": [
+    {{
+      "match_name": "Equipo Local vs Equipo Visitante",
+      "league": "Nombre de la Liga",
+      "date_time": "YYYY-MM-DD HH:MM",
+      "home_win_odds": 1.85,
+      "draw_odds": 3.40,
+      "away_win_odds": 4.20,
+      "recommended_market": "Descripción del mercado recomendado",
+      "recommended_odds": 1.85,
+      "estimated_prob": 0.68,
+      "risk_level": "Verde"
+    }}
+  ]
+}}
+
+Reglas:
+- date_time debe ser la fecha real del partido en formato YYYY-MM-DD HH:MM (hora local aproximada)
+- risk_level: "Verde" si prob > 65%, "Amarillo" si 50-65%, "Rojo" si < 50%
+- recommended_market debe ser el mercado con mejor valor (ej: "Gana Real Madrid", "Doble oportunidad 1X", "Over 2.5 goles")
+- Incluye entre 15 y 30 partidos del día de hoy y mañana
+- Si no sabes la hora exacta, usa HH:MM = 18:00 o 20:00 como aproximación"""
+
+        model = genai.GenerativeModel(
+            model_name='gemini-2.5-flash',
+            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+        )
+        
+        response = model.generate_content(prompt)
+        raw_text = response.text.strip()
+        
+        # Clean up: remove markdown code blocks if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        raw_text = raw_text.strip()
+        
+        data = json.loads(raw_text)
+        matches = data.get("matches", [])
+        
+        if not matches:
+            return {"status": "error", "message": "Gemini no encontró partidos.", "count": 0}
+
+        # Clear existing and insert new
+        db.query(models.Fixture).delete()
+        db.commit()
+        
+        fixtures_created = []
+        for m in matches:
+            match_name = m.get("match_name", "")
+            if not match_name or " vs " not in match_name:
+                continue
+
+            db_fixture = models.Fixture(
+                match_name=match_name,
+                league=m.get("league", "Soccer"),
+                date_time=m.get("date_time", today.strftime("%Y-%m-%d 20:00")),
+                market=m.get("recommended_market", "1X2"),
+                odds=round(float(m.get("recommended_odds", 1.90)), 2),
+                probability=round(float(m.get("estimated_prob", 0.55)), 4),
+                risk_level=m.get("risk_level", "Amarillo"),
+            )
+            db.add(db_fixture)
+            fixtures_created.append(db_fixture)
+        
+        db.commit()
+        for fix in fixtures_created:
+            db.refresh(fix)
+        
+        global data_source
+        data_source = "Gemini Search"
+        
+        return {"status": "success", "message": f"Gemini encontró {len(fixtures_created)} partidos.", "count": len(fixtures_created)}
+
+    except json.JSONDecodeError as e:
+        return {"status": "error", "message": f"Error al parsear respuesta de Gemini: {e}", "count": 0}
+    except Exception as e:
+        return {"status": "error", "message": f"Error en Gemini Search: {e}", "count": 0}
+
 def gemini_filter_fixtures(fixtures: list) -> list:
     """
     Usa Gemini para seleccionar los mejores partidos del día actual y el siguiente.

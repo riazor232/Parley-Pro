@@ -13,6 +13,7 @@ export default function Home() {
   const [selectedFixtures, setSelectedFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [geminiSearching, setGeminiSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<string>("Cargando...");
 
@@ -48,6 +49,25 @@ export default function Home() {
       alert("Error al sincronizar datos");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleGeminiDiscover = async () => {
+    try {
+      setGeminiSearching(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/fixtures/gemini-discover`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        await fetchData();
+        alert(`✅ ${data.message}`);
+      } else {
+        alert(`❌ ${data.message}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error al buscar partidos con Gemini');
+    } finally {
+      setGeminiSearching(false);
     }
   };
 
@@ -120,15 +140,59 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-center">
-            <div className={`flex items-center gap-2 border px-3 py-1.5 rounded-full text-xs ${serverStatus === 'API Real' ? 'bg-green-950/40 border-green-900/30' : serverStatus === 'Cargando...' ? 'bg-gray-950/40 border-gray-900/30' : 'bg-yellow-950/40 border-yellow-900/30'}`}>
+            <div className={`flex items-center gap-2 border px-3 py-1.5 rounded-full text-xs ${
+              serverStatus === 'API Real' ? 'bg-green-950/40 border-green-900/30' :
+              serverStatus === 'Gemini Search' ? 'bg-purple-950/40 border-purple-800/40' :
+              serverStatus === 'Cargando...' ? 'bg-gray-950/40 border-gray-900/30' :
+              'bg-yellow-950/40 border-yellow-900/30'}`}>
               <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${serverStatus === 'API Real' ? 'bg-green-400' : serverStatus === 'Cargando...' ? 'bg-gray-400' : 'bg-yellow-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${serverStatus === 'API Real' ? 'bg-green-500' : serverStatus === 'Cargando...' ? 'bg-gray-500' : 'bg-yellow-500'}`}></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  serverStatus === 'API Real' ? 'bg-green-400' :
+                  serverStatus === 'Gemini Search' ? 'bg-purple-400' :
+                  serverStatus === 'Cargando...' ? 'bg-gray-400' : 'bg-yellow-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  serverStatus === 'API Real' ? 'bg-green-500' :
+                  serverStatus === 'Gemini Search' ? 'bg-purple-500' :
+                  serverStatus === 'Cargando...' ? 'bg-gray-500' : 'bg-yellow-500'}`}></span>
               </span>
-              <span className={`font-semibold ${serverStatus === 'API Real' ? 'text-green-300' : serverStatus === 'Cargando...' ? 'text-gray-300' : 'text-yellow-300'}`}>
-                {serverStatus === 'API Real' ? 'API Conectada' : serverStatus === 'Cargando...' ? 'Conectando...' : 'Modo Simulación'}
+              <span className={`font-semibold ${
+                serverStatus === 'API Real' ? 'text-green-300' :
+                serverStatus === 'Gemini Search' ? 'text-purple-300' :
+                serverStatus === 'Cargando...' ? 'text-gray-300' : 'text-yellow-300'}`}>
+                {serverStatus === 'API Real' ? 'API Conectada' :
+                 serverStatus === 'Gemini Search' ? '✦ Gemini Search' :
+                 serverStatus === 'Cargando...' ? 'Conectando...' : 'Modo Simulación'}
               </span>
             </div>
+            {/* Gemini Discover Button */}
+            <button
+              onClick={handleGeminiDiscover}
+              disabled={geminiSearching}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-all border ${
+                geminiSearching
+                  ? "bg-purple-900/50 text-purple-300 border-purple-800 cursor-wait"
+                  : "bg-purple-600 hover:bg-purple-500 text-white border-transparent shadow-sm"
+              }`}
+              title="Buscar todos los partidos del día con Gemini AI"
+            >
+              {geminiSearching ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-purple-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span className="hidden sm:inline">Buscando...</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L9.09 8.26L2 9.27L7 14.14L5.82 21.02L12 17.77L18.18 21.02L17 14.14L22 9.27L14.91 8.26L12 2Z"/>
+                  </svg>
+                  <span className="hidden sm:inline">Buscar con Gemini</span>
+                  <span className="sm:hidden">Gemini</span>
+                </>
+              )}
+            </button>
             <button 
               onClick={() => handleSync()}
               disabled={syncing}
