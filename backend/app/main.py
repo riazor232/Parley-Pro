@@ -72,10 +72,13 @@ def gemini_discover(db: Session = Depends(get_db)):
     result = services.gemini_discover_matches(db)
     return result
 
+class AnalyzeRequest(schemas.BaseModel):
+    match_name: str
+
 class AnalyzeResponse(schemas.BaseModel):
     analysis: str
 
-@app.post("/api/fixtures/{fixture_id}/analyze", response_model=AnalyzeResponse)
-def analyze_fixture(fixture_id: int, db: Session = Depends(get_db)):
-    analysis = services.analyze_fixture(db, fixture_id)
+@app.post("/api/fixtures/analyze", response_model=AnalyzeResponse)
+def analyze_fixture(request: AnalyzeRequest, db: Session = Depends(get_db)):
+    analysis = services.analyze_fixture(db, request.match_name)
     return {"analysis": analysis}

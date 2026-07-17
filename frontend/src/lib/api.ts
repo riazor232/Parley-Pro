@@ -91,9 +91,11 @@ export async function getServerStatus(): Promise<{ data_source: string }> {
   return res.json();
 }
 
-export async function analyzeFixture(id: number): Promise<{ analysis: string }> {
-  const res = await fetch(`${API_BASE_URL}/api/fixtures/${id}/analyze`, {
+export async function analyzeFixture(match_name: string): Promise<{ analysis: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/fixtures/analyze`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ match_name }),
   });
   if (!res.ok) {
     throw new Error("Failed to analyze fixture");

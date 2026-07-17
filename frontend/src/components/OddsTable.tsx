@@ -18,7 +18,7 @@ export function OddsTable({ fixtures }: OddsTableProps) {
 
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [analyzingId, setAnalyzingId] = useState<number | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   const leagues = Array.from(new Set(fixtures.map((f) => f.league))).sort();
 
@@ -60,11 +60,11 @@ export function OddsTable({ fixtures }: OddsTableProps) {
     setSortConfig({ key, direction });
   };
 
-  const handleAnalyze = async (fixtureId: number) => {
-    setAnalyzingId(fixtureId);
+  const handleAnalyze = async (matchName: string) => {
+    setAnalyzingId(matchName);
     try {
       const { analyzeFixture } = await import("@/lib/api");
-      const res = await analyzeFixture(fixtureId);
+      const res = await analyzeFixture(matchName);
       setAiAnalysis(res.analysis);
       setIsAiModalOpen(true);
     } catch {
@@ -197,12 +197,12 @@ export function OddsTable({ fixtures }: OddsTableProps) {
                 </td>
                 <td className="p-4 text-center">
                   <button
-                    onClick={() => handleAnalyze(fixture.id)}
-                    disabled={analyzingId === fixture.id}
+                    onClick={() => handleAnalyze(fixture.match_name)}
+                    disabled={analyzingId === fixture.match_name}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold cursor-pointer hover:scale-105 active:scale-95 shadow-sm transition-all"
                     title="Analizar con Groq"
                   >
-                    {analyzingId === fixture.id ? (
+                    {analyzingId === fixture.match_name ? (
                       <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -237,11 +237,11 @@ export function OddsTable({ fixtures }: OddsTableProps) {
             <p className="text-xs text-gray-400 dark:text-gray-500">{fixture.league} · {fixture.date_time}</p>
             <p className="text-xs text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800 rounded px-2 py-1">{fixture.market}</p>
             <button
-              onClick={() => handleAnalyze(fixture.id)}
-              disabled={analyzingId === fixture.id}
+              onClick={() => handleAnalyze(fixture.match_name)}
+              disabled={analyzingId === fixture.match_name}
               className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-all"
             >
-              {analyzingId === fixture.id ? (
+              {analyzingId === fixture.match_name ? (
                 <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
               ) : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
