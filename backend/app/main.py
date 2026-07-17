@@ -14,9 +14,14 @@ models.Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializar con mock data si es necesario
+    # Al iniciar, buscar partidos del día con Gemini
     db = next(get_db())
-    services.fetch_and_store_data(db)
+    try:
+        existing = services.get_fixtures(db)
+        if not existing:
+            services.gemini_discover_matches(db)
+    except Exception as e:
+        print(f"Error en lifespan startup: {e}")
     yield
 
 app = FastAPI(title="Apuestas API", lifespan=lifespan)
