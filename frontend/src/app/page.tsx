@@ -4,15 +4,28 @@ import { useEffect, useState, useCallback } from "react";
 import { getFixtures, getServerStatus, Fixture } from "@/lib/api";
 import { OddsTable } from "@/components/OddsTable";
 import { StatsOverview } from "@/components/StatsOverview";
+import { LoginScreen } from "@/components/LoginScreen";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [geminiSearching, setGeminiSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<string>("Cargando...");
+
+  // Check auth on mount
+  useEffect(() => {
+    const auth = sessionStorage.getItem("parleypro_auth");
+    setIsAuthenticated(auth === "1");
+  }, []);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("parleypro_auth");
+    setIsAuthenticated(false);
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -48,8 +61,9 @@ export default function Home() {
     }
   }, [fetchData]);
 
-  // On load: fetch existing data first, then auto-trigger Gemini if empty
+  // On auth confirmed: load data
   useEffect(() => {
+    if (!isAuthenticated) return;
     const init = async () => {
       setLoading(true);
       try {
@@ -60,8 +74,6 @@ export default function Home() {
         setFixtures(fixturesData);
         setServerStatus(statusData.data_source);
         setError(null);
-
-        // Auto-search with Gemini if no fixtures yet
         if (fixturesData.length === 0) {
           await handleGeminiDiscover(true);
         }
@@ -72,8 +84,23 @@ export default function Home() {
       }
     };
     init();
-  }, [handleGeminiDiscover]);
+  }, [isAuthenticated, handleGeminiDiscover]);
 
+  // While checking auth (null = not yet determined)
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-[#061009] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-4 border-emerald-900 border-t-emerald-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // Not logged in → show login screen
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+  }
+
+  // Loading fixtures
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1b15] text-zinc-100 flex flex-col items-center justify-center font-[family-name:var(--font-geist-sans)]">
@@ -161,7 +188,7 @@ export default function Home() {
               )}
             </button>
 
-            {/* Refresh local view */}
+            {/* Refresh */}
             <button
               onClick={() => fetchData()}
               className="p-2 text-gray-300 hover:text-white rounded-lg hover:bg-green-900/20 transition-all border border-green-900/30"
@@ -169,6 +196,17 @@ export default function Home() {
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 6.88M3 9h9v9" />
+              </svg>
+            </button>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 p-2 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-950/20 transition-all border border-transparent hover:border-red-900/30"
+              title="Cerrar sesión"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </button>
           </div>

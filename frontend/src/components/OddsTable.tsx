@@ -17,6 +17,8 @@ export function OddsTable({ fixtures }: OddsTableProps) {
   const [sortConfig, setSortConfig] = useState<{ key: keyof Fixture; direction: "asc" | "desc" } | null>(null);
 
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiMatchName, setAiMatchName] = useState<string>("");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
@@ -62,13 +64,17 @@ export function OddsTable({ fixtures }: OddsTableProps) {
 
   const handleAnalyze = async (matchName: string) => {
     setAnalyzingId(matchName);
+    setAiError(null);
+    setAiAnalysis(null);
+    setAiMatchName(matchName);
+    setIsAiModalOpen(true);
     try {
       const { analyzeFixture } = await import("@/lib/api");
       const res = await analyzeFixture(matchName);
       setAiAnalysis(res.analysis);
-      setIsAiModalOpen(true);
-    } catch {
-      alert("Error al analizar con Groq");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      setAiError(`No se pudo obtener el análisis de Groq. Verifica que el backend esté activo y la API Key esté configurada.\n\nDetalle: ${msg}`);
     } finally {
       setAnalyzingId(null);
     }
@@ -268,22 +274,49 @@ export function OddsTable({ fixtures }: OddsTableProps) {
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-3xl max-h-[88vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
-            <div className="flex justify-between items-center p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80">
-              <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Análisis Inteligente (Groq)
-              </h3>
-              <button onClick={() => setIsAiModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+            {/* Modal header */}
+            <div className="flex justify-between items-start p-4 sm:p-5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Análisis Groq IA
+                </h3>
+                {aiMatchName && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 ml-7 font-medium">{aiMatchName}</p>
+                )}
+              </div>
+              <button onClick={() => setIsAiModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-4 sm:p-6 overflow-y-auto prose dark:prose-invert max-w-none text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">
-              {aiAnalysis || "Generando análisis..."}
+
+            {/* Modal body */}
+            <div className="p-4 sm:p-6 overflow-y-auto max-w-none text-xs sm:text-sm leading-relaxed flex-1">
+              {aiError ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <p className="font-semibold text-red-600 dark:text-red-400">Error al conectar con Groq</p>
+                  <p className="text-zinc-500 dark:text-zinc-400 text-xs max-w-sm whitespace-pre-wrap">{aiError}</p>
+                </div>
+              ) : aiAnalysis ? (
+                <pre className="whitespace-pre-wrap font-[inherit] text-zinc-700 dark:text-zinc-300">{aiAnalysis}</pre>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <span className="animate-spin inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" />
+                  <p className="text-zinc-500 dark:text-zinc-400 text-xs animate-pulse">Generando análisis con Groq...</p>
+                </div>
+              )}
             </div>
+
+            {/* Modal footer */}
             <div className="p-3 sm:p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-end">
               <button
                 onClick={() => setIsAiModalOpen(false)}
