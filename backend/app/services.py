@@ -296,8 +296,8 @@ def gemini_discover_matches(db: Session) -> dict:
     y estimar cuotas basadas en la fuerza relativa de los equipos.
     Guarda los partidos directamente en la base de datos.
     """
-    import google.generativeai as genai
-    from google.generativeai import types as genai_types
+    from google import genai
+    from google.genai import types as genai_types
     from dotenv import load_dotenv
     import json
     from datetime import datetime, timedelta
@@ -308,7 +308,7 @@ def gemini_discover_matches(db: Session) -> dict:
         return {"status": "error", "message": "GEMINI_API_KEY no configurada.", "count": 0}
 
     try:
-        genai.configure(api_key=gemini_key)
+        client = genai.Client(api_key=gemini_key)
         
         today = datetime.now()
         tomorrow = today + timedelta(days=1)
@@ -349,12 +349,15 @@ Reglas:
 - Incluye entre 15 y 30 partidos del día de hoy y mañana
 - Si no sabes la hora exacta, usa HH:MM = 18:00 o 20:00 como aproximación"""
 
-        model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
-            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+            )
         )
         
-        response = model.generate_content(prompt)
+        # response already set above
         raw_text = response.text.strip()
         
         # Clean up: remove markdown code blocks if present
@@ -414,7 +417,7 @@ def gemini_filter_fixtures(fixtures: list) -> list:
     Recibe una lista de fixtures ya almacenados y devuelve los IDs de los más relevantes.
     Si Gemini no está disponible, devuelve todos los fixtures sin filtrar.
     """
-    import google.generativeai as genai
+    from google import genai
     from dotenv import load_dotenv
     load_dotenv()
 
@@ -423,7 +426,7 @@ def gemini_filter_fixtures(fixtures: list) -> list:
         return fixtures
 
     try:
-        genai.configure(api_key=gemini_key)
+        client_filter = genai.Client(api_key=gemini_key)
 
         fixtures_summary = "\n".join([
             f"ID:{f.id} | {f.match_name} | Liga: {f.league} | Fecha: {f.date_time} | Mercado: {f.market} | Cuota: {f.odds} | Prob: {round(f.probability * 100, 1)}% | Riesgo: {f.risk_level}"
@@ -444,8 +447,10 @@ Lista de partidos disponibles:
 Responde ÚNICAMENTE con los IDs de los partidos seleccionados separados por comas, sin texto adicional.
 Selecciona entre 5 y 15 partidos máximo. Ejemplo de respuesta: 3,7,12,18,22
 """
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        response = client_filter.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
         raw = response.text.strip()
 
         # Parse comma-separated IDs
