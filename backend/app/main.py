@@ -89,6 +89,34 @@ def delete_parley(parley_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Parley not found")
     return {"status": "success", "message": "Parley deleted successfully"}
 
+# ─── Saved Bets (Apuestas Guardadas y Eficiencia) ───────────────────────────
+
+@app.get("/api/saved-bets", response_model=list[schemas.SavedBet])
+def read_saved_bets(username: str = "admin", db: Session = Depends(get_db)):
+    return services.get_saved_bets(db, username=username)
+
+@app.post("/api/saved-bets", response_model=schemas.SavedBet)
+def create_saved_bet(bet: schemas.SavedBetCreate, db: Session = Depends(get_db)):
+    return services.create_saved_bet(db, bet)
+
+@app.delete("/api/saved-bets/{bet_id}")
+def delete_saved_bet(bet_id: int, db: Session = Depends(get_db)):
+    success = services.delete_saved_bet(db, bet_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Bet not found")
+    return {"status": "success", "message": "Apuesta eliminada"}
+
+class EfficiencyRequest(schemas.BaseModel):
+    final_result: str
+    username: str = "admin"
+
+@app.post("/api/saved-bets/{bet_id}/efficiency")
+def analyze_efficiency(bet_id: int, req: EfficiencyRequest, db: Session = Depends(get_db)):
+    result = services.analyze_bet_efficiency(db, bet_id, req.final_result, req.username)
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    return result
+
 # ─── Status ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/status")

@@ -26,6 +26,32 @@ export interface SavedParleyCreate {
   items: string;
 }
 
+export interface SavedBet {
+  id: number;
+  username: string;
+  match_name: string;
+  league: string;
+  date_time: string;
+  selected_market: string;
+  odds: number;
+  prompt_analysis?: string | null;
+  status: string; // "Pendiente" | "Finalizado"
+  final_result?: string | null;
+  efficiency_analysis?: string | null;
+  created_at: string;
+  analyzed_at?: string | null;
+}
+
+export interface SavedBetCreate {
+  username?: string;
+  match_name: string;
+  league: string;
+  date_time: string;
+  selected_market: string;
+  odds: number;
+  prompt_analysis?: string | null;
+}
+
 export interface AdminUser {
   id: number;
   username: string;
@@ -102,6 +128,42 @@ export async function saveParley(parley: SavedParleyCreate): Promise<SavedParley
 export async function deleteParley(id: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/parleys/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete parley");
+}
+
+// ─── Saved Bets (Apuestas Guardadas y Eficiencia) ───────────────────────────
+
+export async function getSavedBets(username = "admin"): Promise<SavedBet[]> {
+  const res = await fetch(`${API_BASE_URL}/api/saved-bets?username=${encodeURIComponent(username)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch saved bets");
+  return res.json();
+}
+
+export async function createSavedBet(bet: SavedBetCreate): Promise<SavedBet> {
+  const res = await fetch(`${API_BASE_URL}/api/saved-bets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bet),
+  });
+  if (!res.ok) throw new Error("Failed to save bet");
+  return res.json();
+}
+
+export async function deleteSavedBet(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/saved-bets/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete saved bet");
+}
+
+export async function analyzeBetEfficiency(betId: number, finalResult: string, username = "admin"): Promise<{ status: string; analysis: string; bet: SavedBet }> {
+  const res = await fetch(`${API_BASE_URL}/api/saved-bets/${betId}/efficiency`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ final_result: finalResult, username }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Error al analizar eficiencia");
+  }
+  return res.json();
 }
 
 // ─── Status & Auth ───────────────────────────────────────────────────────────

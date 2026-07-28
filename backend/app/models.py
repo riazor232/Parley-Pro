@@ -23,6 +23,23 @@ class SavedParley(Base):
     created_at = Column(String)
     items = Column(String)
 
+class SavedBet(Base):
+    __tablename__ = "saved_bets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, default="admin")
+    match_name = Column(String, index=True)
+    league = Column(String)
+    date_time = Column(String)
+    selected_market = Column(String)
+    odds = Column(Float)
+    prompt_analysis = Column(String, nullable=True)
+    status = Column(String, default="Pendiente") # "Pendiente", "Finalizado"
+    final_result = Column(String, nullable=True) # Ej: "Real Madrid 2 - 1 Barcelona"
+    efficiency_analysis = Column(String, nullable=True)
+    created_at = Column(String)
+    analyzed_at = Column(String, nullable=True)
+
 class User(Base):
     __tablename__ = "users"
 

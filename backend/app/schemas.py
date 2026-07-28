@@ -35,6 +35,29 @@ class SavedParley(SavedParleyBase):
     class Config:
         from_attributes = True
 
+# ─── SavedBet ────────────────────────────────────────────────────────────────
+class SavedBetBase(BaseModel):
+    username: str = "admin"
+    match_name: str
+    league: str
+    date_time: str
+    selected_market: str
+    odds: float
+    prompt_analysis: Optional[str] = None
+    status: str = "Pendiente"
+    final_result: Optional[str] = None
+    efficiency_analysis: Optional[str] = None
+    created_at: str
+    analyzed_at: Optional[str] = None
+
+class SavedBetCreate(SavedBetBase):
+    pass
+
+class SavedBet(SavedBetBase):
+    id: int
+    class Config:
+        from_attributes = True
+
 # ─── User ────────────────────────────────────────────────────────────────────
 class UserBase(BaseModel):
     username: str

@@ -583,6 +583,98 @@ def delete_saved_parley(db: Session, parley_id: int):
         return True
     return False
 
+# ─── Saved Bets (Apuestas Guardadas & Eficiencia) ───────────────────────────
+
+def create_saved_bet(db: Session, bet: schemas.SavedBetCreate):
+    db_bet = models.SavedBet(
+        username=bet.username,
+        match_name=bet.match_name,
+        league=bet.league,
+        date_time=bet.date_time,
+        selected_market=bet.selected_market,
+        odds=bet.odds,
+        prompt_analysis=bet.prompt_analysis,
+        status="Pendiente",
+        created_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    )
+    db.add(db_bet)
+    db.commit()
+    db.refresh(db_bet)
+    return db_bet
+
+def get_saved_bets(db: Session, username: str = "admin"):
+    return db.query(models.SavedBet).filter(models.SavedBet.username == username).order_by(models.SavedBet.id.desc()).all()
+
+def delete_saved_bet(db: Session, bet_id: int):
+    db_bet = db.query(models.SavedBet).filter(models.SavedBet.id == bet_id).first()
+    if db_bet:
+        db.delete(db_bet)
+        db.commit()
+        return True
+    return False
+
+def analyze_bet_efficiency(db: Session, bet_id: int, final_result: str, username: str = "admin"):
+    import groq
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    bet = db.query(models.SavedBet).filter(models.SavedBet.id == bet_id).first()
+    if not bet:
+        return {"status": "error", "message": "Apuesta guardada no encontrada."}
+
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        return {"status": "error", "message": "API Key de Groq no configurada."}
+
+    client = groq.Client(api_key=groq_key)
+
+    prompt = f"""Actúa como un evaluador y auditor de inteligencia deportiva y pronósticos de apuestas.
+Tu objetivo es evaluar la EFICIENCIA y PRECISIÓN de los pronósticos realizados previamente por nuestro modelo para el siguiente partido.
+
+PARTIDO: {bet.match_name}
+LIGA: {bet.league}
+APUESTA REALIZADA: {bet.selected_market} @ {bet.odds}
+RESULTADO FINAL DEL PARTIDO: {final_result}
+
+ANÁLISIS Y PRONÓSTICOS PREVIOS DADOS POR EL PROMPT:
+{bet.prompt_analysis or "No se guardó el análisis textual previo."}
+
+Por favor elabora una AUDITORÍA DE EFICIENCIA detallada y profesional con la siguiente estructura:
+
+1. 🎯 VEREDICTO DE LA APUESTA: (ACERTADA / FALLADA / NULA)
+2. ⚽ ANÁLISIS DEL RESULTADO vs PRONÓSTICO: Explica cómo se desarrolló el resultado respecto a la predicción del modelo.
+3. 📊 EVALUACIÓN DE EFICIENCIA DE LAS 6 RECOMENDACIONES:
+   - Apuestas recomendadas: (Evalúa si acertaron)
+   - Apuestas a evitar: (Evalúa si fue correcto evitarlas)
+   - Pick más seguro: (¿Se cumplió?)
+   - Pick con mejor valor: (¿Se cumplió?)
+4. 🧠 APRENDIZAJES Y RETROALIMENTACIÓN: ¿Qué aspectos tácticos o contextuales fallaron o acertaron? ¿Qué debe ajustar el modelo para futuros partidos de estos equipos?
+5. 📈 CALIFICACIÓN DE PRECISIÓN (1 al 10) Y CONCLUSIÓN FINAL.
+"""
+
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2000,
+        )
+        analysis_text = completion.choices[0].message.content
+        total_tokens = getattr(completion.usage, "total_tokens", 0) or 0
+        log_usage(db, username=username, ai_service="groq", action="analyze_efficiency",
+                  tokens_used=total_tokens, match_name=bet.match_name)
+
+        bet.status = "Finalizado"
+        bet.final_result = final_result
+        bet.efficiency_analysis = analysis_text
+        bet.analyzed_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        db.commit()
+        db.refresh(bet)
+
+        return {"status": "success", "analysis": analysis_text, "bet": bet}
+    except Exception as e:
+        return {"status": "error", "message": f"Error al generar análisis de eficiencia: {e}"}
+
 def analyze_fixture(db: Session, match_name: str, username: str = "admin"):
     import groq
     from dotenv import load_dotenv

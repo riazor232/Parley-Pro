@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getFixtures, getServerStatus, Fixture } from "@/lib/api";
+import { getFixtures, getServerStatus, getSavedBets, Fixture, SavedBet } from "@/lib/api";
 import { OddsTable } from "@/components/OddsTable";
 import { StatsOverview } from "@/components/StatsOverview";
+import { SavedBetsManager } from "@/components/SavedBetsManager";
 import { LoginScreen } from "@/components/LoginScreen";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -11,6 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [savedBets, setSavedBets] = useState<SavedBet[]>([]);
   const [loading, setLoading] = useState(true);
   const [geminiSearching, setGeminiSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +31,14 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [fixturesData, statusData] = await Promise.all([
+      const [fixturesData, statusData, betsData] = await Promise.all([
         getFixtures(),
         getServerStatus(),
+        getSavedBets(),
       ]);
       setFixtures(fixturesData);
       setServerStatus(statusData.data_source);
+      setSavedBets(betsData);
       setError(null);
     } catch (err: unknown) {
       console.error(err);
@@ -67,12 +71,14 @@ export default function Home() {
     const init = async () => {
       setLoading(true);
       try {
-        const [fixturesData, statusData] = await Promise.all([
+        const [fixturesData, statusData, betsData] = await Promise.all([
           getFixtures(),
           getServerStatus(),
+          getSavedBets(),
         ]);
         setFixtures(fixturesData);
         setServerStatus(statusData.data_source);
+        setSavedBets(betsData);
         setError(null);
       } catch {
         setError("No se pudo conectar con el servidor backend.");
@@ -230,6 +236,7 @@ export default function Home() {
           <div className="space-y-4 sm:space-y-6">
             <StatsOverview fixtures={fixtures} />
             <OddsTable fixtures={fixtures} />
+            <SavedBetsManager bets={savedBets} onRefresh={fetchData} />
           </div>
         )}
       </main>

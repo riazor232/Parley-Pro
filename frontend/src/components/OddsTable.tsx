@@ -317,10 +317,39 @@ export function OddsTable({ fixtures }: OddsTableProps) {
             </div>
 
             {/* Modal footer */}
-            <div className="p-3 sm:p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-end">
+            <div className="p-3 sm:p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 flex justify-between items-center">
+              {aiAnalysis ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      const currentFixture = fixtures.find(f => f.match_name === aiMatchName);
+                      if (!currentFixture) return;
+                      const { createSavedBet } = await import("@/lib/api");
+                      await createSavedBet({
+                        match_name: currentFixture.match_name,
+                        league: currentFixture.league,
+                        date_time: currentFixture.date_time,
+                        selected_market: currentFixture.market,
+                        odds: currentFixture.odds,
+                        prompt_analysis: aiAnalysis
+                      });
+                      alert("✅ Apuesta e informe de análisis guardados exitosamente. Puedes revisarla y evaluar su eficiencia en la sección de 'Apuestas Guardadas'.");
+                      setIsAiModalOpen(false);
+                    } catch (e) {
+                      alert("Error al guardar la apuesta.");
+                    }
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors text-xs sm:text-sm flex items-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                  </svg>
+                  Guardar Apuesta
+                </button>
+              ) : <div />}
               <button
                 onClick={() => setIsAiModalOpen(false)}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
+                className="px-5 py-2 bg-gray-200 dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 hover:bg-gray-300 dark:hover:bg-zinc-700 rounded-lg font-medium transition-colors text-sm"
               >
                 Cerrar
               </button>
