@@ -178,7 +178,7 @@ export function OddsTable({ fixtures }: OddsTableProps) {
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {sortedFixtures.map((fixture) => (
               <tr key={fixture.id} className="hover:bg-green-50/20 dark:hover:bg-zinc-800/40 transition-colors">
-                <td className="p-4 font-semibold text-gray-900 dark:text-zinc-150 max-w-[200px]">
+                <td className="p-4 font-bold text-gray-900 dark:text-emerald-400 max-w-[200px]">
                   {fixture.match_name}
                 </td>
                 <td className="p-4 text-gray-500 dark:text-gray-400 text-sm whitespace-nowrap">
@@ -229,7 +229,7 @@ export function OddsTable({ fixtures }: OddsTableProps) {
         {sortedFixtures.map((fixture) => (
           <div key={fixture.id} className="p-4 space-y-2 hover:bg-green-50/20 dark:hover:bg-zinc-800/40 transition-colors">
             <div className="flex justify-between items-start gap-2">
-              <p className="font-semibold text-gray-900 dark:text-zinc-100 text-sm leading-snug">{fixture.match_name}</p>
+              <p className="font-bold text-gray-900 dark:text-emerald-400 text-sm leading-snug">{fixture.match_name}</p>
               <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold uppercase ${
                 fixture.risk_level.toLowerCase() === "verde"
                   ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"

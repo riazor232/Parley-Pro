@@ -71,7 +71,7 @@ export function SavedParleys({ parleys, onDelete }: SavedParleysProps) {
                   {items.map((item, idx) => (
                     <div key={idx} className="flex justify-between items-center text-xs">
                       <div className="min-w-0 pr-2">
-                        <p className="font-semibold text-gray-800 dark:text-zinc-250 truncate" title={item.match_name}>
+                        <p className="font-bold text-gray-900 dark:text-emerald-400 truncate" title={item.match_name}>
                           {item.match_name}
                         </p>
                         <p className="text-[10px] text-gray-400 truncate">

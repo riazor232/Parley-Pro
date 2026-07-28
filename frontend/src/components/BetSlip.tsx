@@ -131,7 +131,7 @@ export function BetSlip({
               >
                 <div className="flex-1 min-w-0 pr-2">
                   <div className="flex justify-between items-start">
-                    <p className="text-xs font-semibold text-gray-800 dark:text-zinc-200 truncate" title={fixture.match_name}>
+                    <p className="text-xs font-bold text-gray-900 dark:text-emerald-400 truncate" title={fixture.match_name}>
                       {fixture.match_name}
                     </p>
                   </div>
