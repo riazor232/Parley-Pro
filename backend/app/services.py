@@ -373,44 +373,30 @@ def gemini_discover_matches(db: Session) -> dict:
         today_str = today.strftime("%A %d de %B de %Y")
         tomorrow_str = tomorrow.strftime("%A %d de %B de %Y")
 
-        prompt = f"""Busca en internet todos los partidos de fútbol que se juegan HOY ({today_str}) y MAÑANA ({tomorrow_str}) a nivel mundial.
-Incluye partidos de: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, Conference League, Liga MX, MLS, Copa Libertadores, Copa Sudamericana, Eredivisie, Primeira Liga, Liga Pro Ecuador, División Profesional Bolivia, y cualquier otra liga activa que encuentres.
+        prompt = f"""Obtén una lista concisa de 15 partidos clave de fútbol para HOY ({today_str}) y MAÑANA ({tomorrow_str}) de ligas importantes (LaLiga, Premier, Champions, Liga MX, Libertadores, etc.).
 
-Para cada partido, estima las cuotas decimales (odds) basándote en:
-- Historial reciente de los equipos
-- Posición en la tabla
-- Fortaleza ofensiva y defensiva conocida
-- Local vs Visitante (el local generalmente tiene ventaja)
-
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta (sin texto adicional, sin markdown, solo el JSON):
+Para cada partido genera cuotas y mercados estimados.
+Estructura JSON requerida:
 {{
   "matches": [
     {{
-      "match_name": "Equipo Local vs Equipo Visitante",
-      "league": "Nombre de la Liga",
+      "match_name": "Local vs Visitante",
+      "league": "Nombre Liga",
       "date_time": "YYYY-MM-DD HH:MM",
-      "home_win_odds": 1.85,
-      "draw_odds": 3.40,
-      "away_win_odds": 4.20,
-      "recommended_market": "Descripción del mercado recomendado",
+      "recommended_market": "Mercado recomendado",
       "recommended_odds": 1.85,
-      "estimated_prob": 0.68,
+      "estimated_prob": 0.65,
       "risk_level": "Verde"
     }}
   ]
 }}
-
-Reglas:
-- date_time debe ser la fecha real del partido en formato YYYY-MM-DD HH:MM (hora local aproximada)
-- risk_level: "Verde" si prob > 65%, "Amarillo" si 50-65%, "Rojo" si < 50%
-- recommended_market debe ser el mercado con mejor valor (ej: "Gana Real Madrid", "Doble oportunidad 1X", "Over 2.5 goles")
-- Incluye entre 15 y 30 partidos del día de hoy y mañana
-- Si no sabes la hora exacta, usa HH:MM = 18:00 o 20:00 como aproximación"""
+Reglas de riesgo: "Verde" si prob > 0.65, "Amarillo" si 0.50-0.65, "Rojo" si < 0.50."""
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
             )
         )
