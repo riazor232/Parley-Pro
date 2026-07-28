@@ -1,11 +1,69 @@
 import os
 import requests
 import random
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from . import models, schemas
 from .top_clubs import TOP_300_CLUBS
 
 data_source = "API Real"
+
+# ─── Helpers de uso y cuotas ────────────────────────────────────────────────
+
+def log_usage(db: Session, username: str, ai_service: str, action: str,
+              tokens_used: int, match_name: str = None):
+    """Guarda un registro de consumo de tokens en la BD."""
+    try:
+        record = models.ApiUsage(
+            username=username,
+            ai_service=ai_service,
+            action=action,
+            tokens_used=tokens_used,
+            match_name=match_name,
+            created_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        db.add(record)
+        db.commit()
+    except Exception as e:
+        print(f"[log_usage] Error: {e}")
+        db.rollback()
+
+
+def seed_default_quotas(db: Session):
+    """Inserta cuotas por defecto si la tabla está vacía."""
+    if db.query(models.ApiQuota).count() > 0:
+        return
+    next_month_1 = (datetime.utcnow().replace(day=1) + timedelta(days=32)).replace(day=1)
+    renewal = next_month_1.strftime("%Y-%m-%d")
+    defaults = [
+        models.ApiQuota(
+            ai_service="groq",
+            plan_name="Free Tier",
+            total_tokens=500_000,
+            monthly_cost_usd=0.0,
+            renewal_date=renewal,
+        ),
+        models.ApiQuota(
+            ai_service="gemini",
+            plan_name="Free Tier",
+            total_tokens=1_000_000,
+            monthly_cost_usd=0.0,
+            renewal_date=renewal,
+        ),
+    ]
+    for q in defaults:
+        db.add(q)
+    db.commit()
+
+
+def ensure_admin_user(db: Session):
+    """Crea el usuario admin por defecto si no existe."""
+    existing = db.query(models.User).filter_by(username="admin").first()
+    if not existing:
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        db.add(models.User(username="admin", password="juarez", role="admin",
+                           is_active=True, created_at=now))
+        db.commit()
 
 def fetch_and_store_data(db: Session):
     global data_source
@@ -400,10 +458,15 @@ Reglas:
         db.commit()
         for fix in fixtures_created:
             db.refresh(fix)
-        
+
         global data_source
         data_source = "Gemini Search"
-        
+
+        # Estimar tokens consumidos (prompt + respuesta en caracteres / 4 ≈ tokens)
+        estimated_tokens = (len(prompt) + len(raw_text)) // 4
+        log_usage(db, username="sistema", ai_service="gemini", action="discover",
+                  tokens_used=estimated_tokens)
+
         return {"status": "success", "message": f"Gemini encontró {len(fixtures_created)} partidos.", "count": len(fixtures_created)}
 
     except json.JSONDecodeError as e:
@@ -520,7 +583,7 @@ def delete_saved_parley(db: Session, parley_id: int):
         return True
     return False
 
-def analyze_fixture(db: Session, match_name: str):
+def analyze_fixture(db: Session, match_name: str, username: str = "admin"):
     import groq
     from dotenv import load_dotenv
     load_dotenv()
@@ -539,41 +602,48 @@ def analyze_fixture(db: Session, match_name: str):
     local = fixture.match_name.split(' vs ')[0].strip() if ' vs ' in fixture.match_name else fixture.match_name
     visitante = fixture.match_name.split(' vs ')[1].strip() if ' vs ' in fixture.match_name else ''
 
-    prompt = f"""Eres un analista experto en apuestas deportivas. Analiza el siguiente partido usando tu conocimiento actualizado. Responde en formato ESTRUCTURADO, CONCISO y ACCIONABLE. Máximo 420 palabras en total.
+    prompt = f"""Actúa como un analista deportivo profesional especializado en fútbol y apuestas deportivas.
+Tu trabajo es realizar análisis profundos y detallados de partidos de fútbol para identificar oportunidades de apuestas con valor estadístico.
 
 PARTIDO: {fixture.match_name}
 LIGA: {fixture.league}
 FECHA: {fixture.date_time}
-MERCADO SUGERIDO: {fixture.market} @ {fixture.odds}
+MERCADO SUGERIDO INICIAL: {fixture.market} @ {fixture.odds}
 PROBABILIDAD BASE CALCULADA: {round(fixture.probability * 100, 1)}%
 
----
-Responde EXACTAMENTE con estas 4 secciones (usa emojis y viñetas, sin párrafos largos):
+Cada análisis debe incluir obligatoriamente:
+- Rachas recientes de ambos equipos.
+- Rendimiento como local y visitante.
+- Historial H2H completo.
+- Últimos partidos disputados.
+- Contexto actual de ambos equipos (necesidad de ganar, rotaciones, lesiones, presión, calendario, motivación, etc.).
+- Patrones y tendencias repetitivas detectadas.
+- Análisis táctico y emocional de cada equipo.
+- Recomendaciones automáticas basadas en estadísticas y contexto real.
 
-⚽ ESTADÍSTICAS CLAVE
-• xG {local}: [valor] | xGA: [valor]
-• xG {visitante}: [valor] | xGA: [valor]
-• Tiros a puerta/totales — {local}: X/X | {visitante}: X/X
-• Posesión efectiva (zona ofensiva): {local} X% | {visitante} X%
-• Corners promedio por partido: {local} X | {visitante} X
-• Eficiencia balón parado: [una línea concisa]
+Además, debes incluir estadísticas claras y fáciles de entender:
+- Probabilidad de victoria y doble oportunidad.
+- Promedio de goles.
+- Porcentaje de ambos equipos anotan.
+- Porcentaje de porterías a cero (clean sheets).
+- Promedio de tiros totales y tiros al arco.
+- Estadísticas diferenciadas entre local y visitante.
+- Cantidad promedio de corners.
+- Estadísticas del primer tiempo (goles, corners y dominio).
+- Handicap europeo o asiático recomendado.
+- Tabla de posiciones actualizada con el equipo resaltado.
+- Rendimiento individual de jugadores clave (goles, asistencias, tiros al arco, participación ofensiva).
 
-📊 CONTEXTO
-• Forma últ. 5 partidos: {local} [ej: W W D L W] | {visitante} [ej: L W W D L]
-• Rendimiento local/visitante esta temporada: [breve por equipo]
-• Bajas/sanciones confirmadas: [nombres clave o "Sin info relevante"]
-• Fatiga y calendario: [nota sobre carga de partidos recientes]
-• Motivación competitiva: [qué se juega cada equipo en este partido]
+Quiero que el análisis sea inteligente, objetivo y profesional, evitando respuestas genéricas.
+No te limites únicamente a datos básicos: combina estadísticas, contexto, tendencias, momento emocional y lectura táctica del partido para construir escenarios probables.
 
-🎯 MERCADOS
-• 1X2: [ganador probable] — prob. estimada X% | edge vs cuota {fixture.odds}: +/-X%
-• Over/Under: [línea + justificación xG en 1 línea]
-• Hándicap asiático: [línea sugerida y equipo]
-• Prop destacada: [jugador + mercado + razón táctica en 1 línea]
-
-✅ APUESTA PRINCIPAL
-[Mercado exacto] @ [cuota objetivo] — Confianza: ALTO / MEDIO / BAJO
-Razón: [1 línea máximo]
+Al final del análisis debes incluir obligatoriamente las siguientes 6 secciones finales enumeradas:
+1. Apuestas recomendadas.
+2. Apuestas que deberían evitarse.
+3. Pick más seguro.
+4. Pick con mejor valor.
+5. Nivel de riesgo de cada apuesta.
+6. Conclusión final resumida y fácil de entender.
 """
 
     try:
@@ -581,8 +651,96 @@ Razón: [1 línea máximo]
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
-            max_tokens=900,
+            max_tokens=2500,
         )
+        # Capturar tokens reales reportados por Groq
+        total_tokens = getattr(completion.usage, "total_tokens", 0) or 0
+        log_usage(db, username=username, ai_service="groq", action="analyze",
+                  tokens_used=total_tokens, match_name=match_name)
         return completion.choices[0].message.content
     except Exception as e:
         return f"Error al generar análisis con Groq: {e}"
+
+
+# ─── Admin: Usuarios ────────────────────────────────────────────────────────
+
+def admin_get_users(db: Session):
+    return db.query(models.User).order_by(models.User.created_at.desc()).all()
+
+
+def admin_create_user(db: Session, username: str, password: str, role: str = "user") -> models.User:
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    user = models.User(username=username, password=password, role=role,
+                       is_active=True, created_at=now)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def admin_update_user(db: Session, user_id: int, data: dict) -> models.User:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return None
+    for k, v in data.items():
+        if v is not None:
+            setattr(user, k, v)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def admin_delete_user(db: Session, user_id: int) -> bool:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
+
+
+# ─── Admin: Uso y Cuotas ────────────────────────────────────────────────────
+
+def admin_get_usage(db: Session, limit: int = 500):
+    return (db.query(models.ApiUsage)
+              .order_by(models.ApiUsage.created_at.desc())
+              .limit(limit).all())
+
+
+def admin_get_quotas(db: Session):
+    seed_default_quotas(db)
+    return db.query(models.ApiQuota).all()
+
+
+def admin_update_quota(db: Session, ai_service: str, data: dict) -> models.ApiQuota:
+    quota = db.query(models.ApiQuota).filter(models.ApiQuota.ai_service == ai_service).first()
+    if not quota:
+        return None
+    for k, v in data.items():
+        if v is not None:
+            setattr(quota, k, v)
+    db.commit()
+    db.refresh(quota)
+    return quota
+
+
+def admin_get_usage_summary(db: Session) -> dict:
+    """Resumen de tokens consumidos por usuario y por servicio."""
+    records = db.query(models.ApiUsage).all()
+    summary = {}
+    for r in records:
+        key = r.username
+        if key not in summary:
+            summary[key] = {"groq": 0, "gemini": 0, "total": 0}
+        summary[key][r.ai_service] = summary[key].get(r.ai_service, 0) + r.tokens_used
+        summary[key]["total"] += r.tokens_used
+    return summary
+
+
+def admin_verify_login(db: Session, username: str, password: str):
+    """Verifica credenciales de usuario en la BD."""
+    return db.query(models.User).filter(
+        models.User.username == username,
+        models.User.password == password,
+        models.User.is_active == True
+    ).first()

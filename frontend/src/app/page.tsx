@@ -74,9 +74,6 @@ export default function Home() {
         setFixtures(fixturesData);
         setServerStatus(statusData.data_source);
         setError(null);
-        if (fixturesData.length === 0) {
-          await handleGeminiDiscover(true);
-        }
       } catch {
         setError("No se pudo conectar con el servidor backend.");
       } finally {
@@ -84,7 +81,7 @@ export default function Home() {
       }
     };
     init();
-  }, [isAuthenticated, handleGeminiDiscover]);
+  }, [isAuthenticated]);
 
   // While checking auth (null = not yet determined)
   if (isAuthenticated === null) {

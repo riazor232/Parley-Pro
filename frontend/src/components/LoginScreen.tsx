@@ -19,16 +19,25 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
     setLoading(true);
 
-    // Simular delay de autenticación
-    await new Promise((r) => setTimeout(r, 700));
-
-    if (username.trim().toLowerCase() === "admin" && password === "juarez") {
+    try {
+      const { loginUser } = await import("@/lib/api");
+      const data = await loginUser(username.trim().toLowerCase(), password);
       sessionStorage.setItem("parleypro_auth", "1");
+      sessionStorage.setItem("parleypro_username", data.username);
+      sessionStorage.setItem("parleypro_role", data.role);
       onLogin();
-    } else {
-      setError("Usuario o contraseña incorrectos.");
-      setShake(true);
-      setTimeout(() => setShake(false), 600);
+    } catch {
+      // Fallback local para cuando el backend no está disponible
+      if (username.trim().toLowerCase() === "admin" && password === "juarez") {
+        sessionStorage.setItem("parleypro_auth", "1");
+        sessionStorage.setItem("parleypro_username", "admin");
+        sessionStorage.setItem("parleypro_role", "admin");
+        onLogin();
+      } else {
+        setError("Usuario o contraseña incorrectos.");
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+      }
     }
     setLoading(false);
   };
