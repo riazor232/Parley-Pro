@@ -373,9 +373,11 @@ def gemini_discover_matches(db: Session) -> dict:
         today_str = today.strftime("%A %d de %B de %Y")
         tomorrow_str = tomorrow.strftime("%A %d de %B de %Y")
 
-        prompt = f"""Obtén una lista concisa de 15 partidos clave de fútbol para HOY ({today_str}) y MAÑANA ({tomorrow_str}) de ligas importantes (LaLiga, Premier, Champions, Liga MX, Libertadores, etc.).
+        prompt = f"""Obtén una lista completa de partidos de fútbol profesional para HOY ({today_str}) y MAÑANA ({tomorrow_str}) de ligas importantes de todo el mundo (LaLiga, Premier League, Serie A, Bundesliga, Ligue 1, Liga MX, Champions League, Copa Libertadores, etc.).
 
-Para cada partido genera cuotas y mercados estimados.
+Para cada partido, enfócate EXCLUSIVAMENTE en estimar mercados de TIROS DE ESQUINA (Corners) y TARJETAS (Amarillas/Rojas).
+No uses mercados de ganador (1X2) ni goles. Centra la sugerencia solo en córners o tarjetas.
+
 Estructura JSON requerida:
 {{
   "matches": [
@@ -383,14 +385,17 @@ Estructura JSON requerida:
       "match_name": "Local vs Visitante",
       "league": "Nombre Liga",
       "date_time": "YYYY-MM-DD HH:MM",
-      "recommended_market": "Mercado recomendado",
+      "recommended_market": "Más de 8.5 Córners" o "Más de 4.5 Tarjetas",
       "recommended_odds": 1.85,
       "estimated_prob": 0.65,
       "risk_level": "Verde"
     }}
   ]
 }}
-Reglas de riesgo: "Verde" si prob > 0.65, "Amarillo" si 0.50-0.65, "Rojo" si < 0.50."""
+Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
+- "Verde": Riesgo Bajo (alta consistencia estadística en córners/tarjetas, prob > 0.65)
+- "Amarillo": Riesgo Medio (tendencia moderada, prob 0.50-0.65)
+- "Rojo": Riesgo Alto (equipos impredecibles en tarjetas/córners, prob < 0.50)."""
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -581,6 +586,7 @@ def create_saved_bet(db: Session, bet: schemas.SavedBetCreate):
         odds=bet.odds,
         prompt_analysis=bet.prompt_analysis,
         status="Pendiente",
+        prediction_result=bet.prediction_result or "Pendiente",
         created_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     )
     db.add(db_bet)
@@ -650,6 +656,17 @@ Por favor elabora una AUDITORÍA DE EFICIENCIA detallada y profesional con la si
         log_usage(db, username=username, ai_service="groq", action="analyze_efficiency",
                   tokens_used=total_tokens, match_name=bet.match_name)
 
+        # Parsear si el veredicto fue Acertada, Fallada o Nula
+        analysis_upper = analysis_text.upper()
+        if "ACERTADA" in analysis_upper or "VEREDICTO: ACERTADA" in analysis_upper or "VEREDICTO DE LA APUESTA: ACERTADA" in analysis_upper:
+            bet.prediction_result = "Acertada"
+        elif "FALLADA" in analysis_upper or "VEREDICTO: FALLADA" in analysis_upper or "VEREDICTO DE LA APUESTA: FALLADA" in analysis_upper:
+            bet.prediction_result = "Fallada"
+        elif "NULA" in analysis_upper or "VEREDICTO: NULA" in analysis_upper:
+            bet.prediction_result = "Nula"
+        else:
+            bet.prediction_result = "Acertada" if "ÉXITO" in analysis_upper or "GANADA" in analysis_upper else "Fallada"
+
         bet.status = "Finalizado"
         bet.final_result = final_result
         bet.efficiency_analysis = analysis_text
@@ -666,10 +683,24 @@ def analyze_fixture(db: Session, match_name: str, username: str = "admin"):
     from dotenv import load_dotenv
     load_dotenv()
 
-    # Buscar por match_name (clave estable, no depende del ID auto-incremental)
-    fixture = db.query(models.Fixture).filter(models.Fixture.match_name == match_name).first()
+    # Buscar por match_name de forma flexible (insensible a mayúsculas/minúsculas y espacios)
+    clean_name = match_name.strip()
+    fixture = db.query(models.Fixture).filter(models.Fixture.match_name.ilike(clean_name)).first()
+    
     if not fixture:
-        return f"Partido '{match_name}' no encontrado en la base de datos."
+        # Fallback de seguridad: Buscar por subcadena si el nombre varía levemente
+        fixture = db.query(models.Fixture).filter(models.Fixture.match_name.contains(clean_name)).first()
+
+    # Si aún no existe en DB (ej: partido buscado dinámicamente o recién introducido), creamos un objeto genérico para permitir el análisis
+    if not fixture:
+        class DummyFixture:
+            match_name = clean_name
+            league = "Fútbol"
+            date_time = "Por definir"
+            market = "Ganador del partido / Doble oportunidad"
+            odds = 1.85
+            probability = 0.55
+        fixture = DummyFixture()
 
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key:
@@ -680,48 +711,40 @@ def analyze_fixture(db: Session, match_name: str, username: str = "admin"):
     local = fixture.match_name.split(' vs ')[0].strip() if ' vs ' in fixture.match_name else fixture.match_name
     visitante = fixture.match_name.split(' vs ')[1].strip() if ' vs ' in fixture.match_name else ''
 
-    prompt = f"""Actúa como un analista deportivo profesional especializado en fútbol y apuestas deportivas.
-Tu trabajo es realizar análisis profundos y detallados de partidos de fútbol para identificar oportunidades de apuestas con valor estadístico.
+    prompt = f"""Actúa como un analista deportivo profesional especializado EXCLUSIVAMENTE en TIROS DE ESQUINA (Corners) y TARJETAS (Amarillas y Rojas) en fútbol profesional.
 
 PARTIDO: {fixture.match_name}
 LIGA: {fixture.league}
 FECHA: {fixture.date_time}
-MERCADO SUGERIDO INICIAL: {fixture.market} @ {fixture.odds}
-PROBABILIDAD BASE CALCULADA: {round(fixture.probability * 100, 1)}%
+MERCADO SUGERIDO: {fixture.market} @ {fixture.odds}
 
-Cada análisis debe incluir obligatoriamente:
-- Rachas recientes de ambos equipos.
-- Rendimiento como local y visitante.
-- Historial H2H completo.
-- Últimos partidos disputados.
-- Contexto actual de ambos equipos (necesidad de ganar, rotaciones, lesiones, presión, calendario, motivación, etc.).
-- Patrones y tendencias repetitivas detectadas.
-- Análisis táctico y emocional de cada equipo.
-- Recomendaciones automáticas basadas en estadísticas y contexto real.
+IMPORTANTE: Céntrate NÚNICA Y EXCLUSIVAMENTE en analizar TIROS DE ESQUINA Y TARJETAS. Ignora pronósticos de ganador del partido (1X2), ambos anotan o goles totales a menos que influyan en tarjetas/corners.
 
-Además, debes incluir estadísticas claras y fáciles de entender:
-- Probabilidad de victoria y doble oportunidad.
-- Promedio de goles.
-- Porcentaje de ambos equipos anotan.
-- Porcentaje de porterías a cero (clean sheets).
-- Promedio de tiros totales y tiros al arco.
-- Estadísticas diferenciadas entre local y visitante.
-- Cantidad promedio de corners.
-- Estadísticas del primer tiempo (goles, corners y dominio).
-- Handicap europeo o asiático recomendado.
-- Tabla de posiciones actualizada con el equipo resaltado.
-- Rendimiento individual de jugadores clave (goles, asistencias, tiros al arco, participación ofensiva).
+Tu análisis debe estructurarse obligatoriamente con los siguientes apartados:
 
-Quiero que el análisis sea inteligente, objetivo y profesional, evitando respuestas genéricas.
-No te limites únicamente a datos básicos: combina estadísticas, contexto, tendencias, momento emocional y lectura táctica del partido para construir escenarios probables.
+1. 🚩 ANÁLISIS DE TIROS DE ESQUINA (CÓRNERS):
+   - Promedio de córners a favor y en contra de {local} (como local) y {visitante} (como visitante).
+   - Promedio total combinado de córners esperados en el partido.
+   - Tendencia en primer tiempo vs segundo tiempo.
+   - Historial H2H reciente en cantidad de saques de esquina.
+   - Líneas de apuestas recomendadas (ej: Over/Under 8.5, 9.5, 10.5 córners).
 
-Al final del análisis debes incluir obligatoriamente las siguientes 6 secciones finales enumeradas:
-1. Apuestas recomendadas.
-2. Apuestas que deberían evitarse.
-3. Pick más seguro.
-4. Pick con mejor valor.
-5. Nivel de riesgo de cada apuesta.
-6. Conclusión final resumida y fácil de entender.
+2. 🟨 ANÁLISIS DE TARJETAS Y AGRESIVIDAD:
+   - Promedio de tarjetas amarillas y rojas recibidas por {local} y {visitante}.
+   - Índice de agresividad, faltas cometidas y rivalidad del encuentro (derbi, partido tenso, etc.).
+   - Perfil del árbitro asignado o nivel de rigurosidad del arbitraje en esta liga.
+   - Líneas de apuestas recomendadas (ej: Over/Under 4.5 tarjetas totales, equipo con más tarjetas).
+
+3. 🛡️ EVALUACIÓN Y JUSTIFICACIÓN DEL NIVEL DE RIESGO:
+   - Indica de forma clara si este partido representa RIESGO BAJO (Verde), RIESGO MEDIO (Amarillo) o RIESGO ALTO (Rojo).
+   - Justifica detalladamente el por qué del nivel de riesgo basado en la constancia o volatilidad de los datos de córners y tarjetas.
+
+4. 💡 PICKS RECOMENDADOS Y A EVITAR (EXCLUSIVO CÓRNERS Y TARJETAS):
+   1. Pick de Córners más seguro (Riesgo Bajo)
+   2. Pick de Tarjetas más seguro (Riesgo Bajo)
+   3. Pick de Córners/Tarjetas con mejor valor (Riesgo Medio)
+   4. Apuestas de Córners/Tarjetas que DEBEN EVITARSE por alto riesgo
+   5. Conclusión final resumida de córners y tarjetas.
 """
 
     try:

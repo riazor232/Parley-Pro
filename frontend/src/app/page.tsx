@@ -65,7 +65,7 @@ export default function Home() {
     }
   }, [fetchData]);
 
-  // On auth confirmed: load data
+  // On auth confirmed: load data and auto-discover matches for the day
   useEffect(() => {
     if (!isAuthenticated) return;
     const init = async () => {
@@ -76,10 +76,14 @@ export default function Home() {
           getServerStatus(),
           getSavedBets(),
         ]);
+        
         setFixtures(fixturesData);
         setServerStatus(statusData.data_source);
         setSavedBets(betsData);
         setError(null);
+
+        // Auto discover today's matches with Gemini on login if none loaded or on initial login
+        handleGeminiDiscover(true);
       } catch {
         setError("No se pudo conectar con el servidor backend.");
       } finally {
@@ -87,7 +91,7 @@ export default function Home() {
       }
     };
     init();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, handleGeminiDiscover]);
 
   // While checking auth (null = not yet determined)
   if (isAuthenticated === null) {
@@ -142,12 +146,12 @@ export default function Home() {
           {/* Logo */}
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-[#10b981] rounded-lg text-white font-black text-sm tracking-tighter">PP</span>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-                Parley<span className="text-[#10b981]">Pro</span>
+              <span className="p-1.5 bg-[#10b981] rounded-lg text-white font-black text-sm tracking-tighter">J</span>
+              <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
+                Juarez <span className="text-[#10b981]">- Análisis Tiros de esquina &amp; Tarjetas</span>
               </h1>
             </div>
-            <p className="text-xs text-green-200/70 mt-0.5 hidden sm:block">Plataforma Predictiva de Inteligencia Deportiva</p>
+            <p className="text-xs text-green-200/70 mt-0.5 hidden sm:block">Plataforma Predictiva de Inteligencia Deportiva (Córners y Tarjetas)</p>
           </div>
 
           {/* Actions */}

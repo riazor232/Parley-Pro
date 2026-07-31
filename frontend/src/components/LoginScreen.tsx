@@ -70,17 +70,17 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
         <div className="relative bg-[#0b1a12]/90 backdrop-blur-xl border border-emerald-900/40 rounded-2xl shadow-2xl p-8">
           {/* Logo */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-col items-center mb-8 text-center">
+            <div className="flex items-center gap-2 mb-2 justify-center">
               <span className="p-2 bg-emerald-500 rounded-xl text-white font-black text-base tracking-tighter shadow-lg shadow-emerald-500/30">
-                PP
+                J
               </span>
-              <h1 className="text-3xl font-extrabold tracking-tight text-white">
-                Parley<span className="text-emerald-400">Pro</span>
+              <h1 className="text-2xl font-extrabold tracking-tight text-white">
+                Juarez <span className="text-emerald-400">- Análisis Tiros de esquina &amp; Tarjetas</span>
               </h1>
             </div>
-            <p className="text-xs text-emerald-300/60 font-medium tracking-widest uppercase">
-              Plataforma Predictiva · Acceso Privado
+            <p className="text-xs text-emerald-300/60 font-medium tracking-widest uppercase mt-1">
+              Plataforma Predictiva de Córners y Tarjetas · Acceso Privado
             </p>
           </div>
 

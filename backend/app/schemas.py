@@ -45,6 +45,7 @@ class SavedBetBase(BaseModel):
     odds: float
     prompt_analysis: Optional[str] = None
     status: str = "Pendiente"
+    prediction_result: Optional[str] = "Pendiente"
     final_result: Optional[str] = None
     efficiency_analysis: Optional[str] = None
     created_at: str

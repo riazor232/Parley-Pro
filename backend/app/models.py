@@ -35,7 +35,8 @@ class SavedBet(Base):
     odds = Column(Float)
     prompt_analysis = Column(String, nullable=True)
     status = Column(String, default="Pendiente") # "Pendiente", "Finalizado"
-    final_result = Column(String, nullable=True) # Ej: "Real Madrid 2 - 1 Barcelona"
+    prediction_result = Column(String, default="Pendiente") # "Por iniciar", "En juego", "Acertada", "Fallada", "Nula", "Pendiente"
+    final_result = Column(String, nullable=True) # Ej: "Real Madrid 2 - 1 Barcelona (Corners: 10, Tarjetas: 5)"
     efficiency_analysis = Column(String, nullable=True)
     created_at = Column(String)
     analyzed_at = Column(String, nullable=True)

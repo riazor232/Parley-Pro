@@ -36,6 +36,7 @@ export interface SavedBet {
   odds: number;
   prompt_analysis?: string | null;
   status: string; // "Pendiente" | "Finalizado"
+  prediction_result?: string | null; // "Por iniciar" | "En juego" | "Acertada" | "Fallada" | "Nula" | "Pendiente"
   final_result?: string | null;
   efficiency_analysis?: string | null;
   created_at: string;
@@ -50,6 +51,7 @@ export interface SavedBetCreate {
   selected_market: string;
   odds: number;
   prompt_analysis?: string | null;
+  prediction_result?: string;
 }
 
 export interface AdminUser {
