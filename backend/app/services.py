@@ -378,14 +378,14 @@ def gemini_discover_matches(db: Session) -> dict:
 Para cada partido, enfócate EXCLUSIVAMENTE en estimar mercados de TIROS DE ESQUINA (Corners) y TARJETAS (Amarillas/Rojas).
 No uses mercados de ganador (1X2) ni goles. Centra la sugerencia solo en córners o tarjetas.
 
-Estructura JSON requerida:
+Responde obligatoriamente en formato JSON válido con la siguiente estructura:
 {{
   "matches": [
     {{
       "match_name": "Local vs Visitante",
       "league": "Nombre Liga",
       "date_time": "YYYY-MM-DD HH:MM",
-      "recommended_market": "Más de 8.5 Córners" o "Más de 4.5 Tarjetas",
+      "recommended_market": "Más de 8.5 Córners",
       "recommended_odds": 1.85,
       "estimated_prob": 0.65,
       "risk_level": "Verde"
@@ -401,7 +401,6 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
             model='gemini-2.5-flash',
             contents=prompt,
             config=genai_types.GenerateContentConfig(
-                response_mime_type="application/json",
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
             )
         )
