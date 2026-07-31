@@ -191,15 +191,20 @@ export function OddsTable({ fixtures }: OddsTableProps) {
                   </span>
                 </td>
                 <td className="p-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
-                    fixture.risk_level.toLowerCase() === "verde"
-                      ? "bg-green-100/80 dark:bg-green-950/20 text-green-700 dark:text-green-450 border-green-200 dark:border-green-900/50"
-                      : fixture.risk_level.toLowerCase() === "amarillo"
-                      ? "bg-yellow-100/80 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-450 border-yellow-200 dark:border-yellow-900/50"
-                      : "bg-red-100/80 dark:bg-red-950/20 text-red-700 dark:text-red-450 border-red-200 dark:border-red-900/50"
-                  }`}>
-                    {fixture.risk_level}
-                  </span>
+                  <div className="flex flex-col items-start gap-1">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
+                      fixture.risk_level.toLowerCase() === "verde"
+                        ? "bg-green-100/80 dark:bg-green-950/20 text-green-700 dark:text-green-450 border-green-200 dark:border-green-900/50"
+                        : fixture.risk_level.toLowerCase() === "amarillo"
+                        ? "bg-yellow-100/80 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-450 border-yellow-200 dark:border-yellow-900/50"
+                        : "bg-red-100/80 dark:bg-red-950/20 text-red-700 dark:text-red-450 border-red-200 dark:border-red-900/50"
+                    }`}>
+                      {fixture.risk_level}
+                    </span>
+                    <span className="text-[11px] font-semibold text-gray-500 dark:text-zinc-400">
+                      {Math.round(fixture.probability * 100)}% acierto
+                    </span>
+                  </div>
                 </td>
                 <td className="p-4 text-center">
                   <button
@@ -230,15 +235,20 @@ export function OddsTable({ fixtures }: OddsTableProps) {
           <div key={fixture.id} className="p-4 space-y-2 hover:bg-green-50/20 dark:hover:bg-zinc-800/40 transition-colors">
             <div className="flex justify-between items-start gap-2">
               <p className="font-bold text-gray-900 dark:text-emerald-400 text-sm leading-snug">{fixture.match_name}</p>
-              <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold uppercase ${
-                fixture.risk_level.toLowerCase() === "verde"
-                  ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                  : fixture.risk_level.toLowerCase() === "amarillo"
-                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-              }`}>
-                {fixture.risk_level}
-              </span>
+              <div className="flex flex-col items-end gap-0.5">
+                <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold uppercase ${
+                  fixture.risk_level.toLowerCase() === "verde"
+                    ? "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                    : fixture.risk_level.toLowerCase() === "amarillo"
+                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400"
+                    : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+                }`}>
+                  {fixture.risk_level}
+                </span>
+                <span className="text-[10px] font-semibold text-gray-500 dark:text-zinc-400">
+                  {Math.round(fixture.probability * 100)}% acierto
+                </span>
+              </div>
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500">{fixture.league} · {fixture.date_time}</p>
             <p className="text-xs text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800 rounded px-2 py-1">{fixture.market}</p>

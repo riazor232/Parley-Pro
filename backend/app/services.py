@@ -433,14 +433,29 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
             if not match_name or " vs " not in match_name:
                 continue
 
+            prob = round(float(m.get("estimated_prob", 0.55)), 4)
+            raw_risk = str(m.get("risk_level", "")).strip().capitalize()
+
+            # Calcular nivel de riesgo dinámicamente si no coincide o falta
+            if prob > 0.65:
+                risk_level = "Verde"
+            elif prob >= 0.50:
+                risk_level = "Amarillo"
+            else:
+                risk_level = "Rojo"
+
+            # Si Gemini proporcionó un riesgo válido Verde/Amarillo/Rojo, respetarlo
+            if raw_risk in ["Verde", "Amarillo", "Rojo"]:
+                risk_level = raw_risk
+
             db_fixture = models.Fixture(
                 match_name=match_name,
                 league=m.get("league", "Soccer"),
                 date_time=m.get("date_time", today.strftime("%Y-%m-%d 20:00")),
-                market=m.get("recommended_market", "1X2"),
-                odds=round(float(m.get("recommended_odds", 1.90)), 2),
-                probability=round(float(m.get("estimated_prob", 0.55)), 4),
-                risk_level=m.get("risk_level", "Amarillo"),
+                market=m.get("recommended_market", "Córners / Tarjetas"),
+                odds=round(float(m.get("recommended_odds", 1.85)), 2),
+                probability=prob,
+                risk_level=risk_level,
             )
             db.add(db_fixture)
             fixtures_created.append(db_fixture)
