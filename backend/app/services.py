@@ -397,28 +397,55 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
 - "Amarillo": Riesgo Medio (tendencia moderada, prob 0.50-0.65)
 - "Rojo": Riesgo Alto (equipos impredecibles en tarjetas/córners, prob < 0.50)."""
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
-                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
-            )
-        )
+        response = None
+        models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
+        import time
+        last_error = None
+
+        for model_name in models_to_try:
+            for attempt in range(3):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=genai_types.GenerateContentConfig(
+                            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+                        )
+                    )
+                    if response and response.text:
+                        break
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str:
+                        time.sleep(2 * (attempt + 1))
+                    else:
+                        break
+            if response and response.text:
+                break
+
+        if not response or not response.text:
+            return {"status": "error", "message": f"Servidor Gemini ocupado temporalmente. Por favor reintenta en unos segundos. Detalle: {last_error}", "count": 0}
         
-        # response already set above
         raw_text = response.text.strip()
         
-        # Clean up: remove markdown code blocks if present
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
-        raw_text = raw_text.strip()
-        
-        data = json.loads(raw_text)
-        matches = data.get("matches", [])
+        # Extraer JSON de forma robusta con Regex (soporta texto antes/después y markdown codeblocks)
+        import re
+        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+        else:
+            json_str = raw_text
+
+        # Limpiar posibles delimitadores de bloque de código markdown
+        if json_str.startswith("```"):
+            json_str = re.sub(r'^```(?:json)?\s*', '', json_str, flags=re.IGNORECASE)
+        if json_str.endswith("```"):
+            json_str = re.sub(r'\s*```$', '', json_str)
+        json_str = json_str.strip()
+
+        data = json.loads(json_str)
+        matches = data.get("matches", []) if isinstance(data, dict) else []
         
         if not matches:
             return {"status": "error", "message": "Gemini no encontró partidos.", "count": 0}
