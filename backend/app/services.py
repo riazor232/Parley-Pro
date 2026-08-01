@@ -350,177 +350,186 @@ def fetch_real_fixtures(db: Session, odds_api_key: str):
 
 def gemini_discover_matches(db: Session) -> dict:
     """
-    Usa Gemini con Google Search para encontrar TODOS los partidos de hoy y mañana,
-    y estimar cuotas basadas en la fuerza relativa de los equipos.
-    Guarda los partidos directamente en la base de datos.
+    Usa TheSportsDB para obtener partidos reales de hoy y mañana,
+    luego usa Groq para analizar corners y tarjetas de cada partido.
     """
-    from google import genai
-    from google.genai import types as genai_types
     from dotenv import load_dotenv
-    import json
+    import json, requests, re
     from datetime import datetime, timedelta
     load_dotenv()
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        return {"status": "error", "message": "GEMINI_API_KEY no configurada.", "count": 0}
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        return {"status": "error", "message": "GROQ_API_KEY no configurada.", "count": 0}
 
     try:
-        client = genai.Client(api_key=gemini_key)
-        
         today = datetime.now()
         tomorrow = today + timedelta(days=1)
-        today_str = today.strftime("%A %d de %B de %Y")
-        tomorrow_str = tomorrow.strftime("%A %d de %B de %Y")
+        today_str = today.strftime("%Y-%m-%d")
+        tomorrow_str = tomorrow.strftime("%Y-%m-%d")
 
-        prompt = f"""Usa Google Search para encontrar los partidos de fútbol profesional programados para HOY ({today_str}) y MAÑANA ({tomorrow_str}) en las principales ligas del mundo: LaLiga, Premier League, Serie A, Bundesliga, Ligue 1, Liga MX, Champions League, Copa Libertadores, MLS, y otras ligas importantes.
+        # ── 1. Obtener partidos reales desde TheSportsDB ──────────────────────
+        raw_events = []
 
-Para cada partido encontrado, analiza estadísticamente el historial reciente de los equipos en cuanto a:
-1. Promedio de TIROS DE ESQUINA (Corners) por partido de cada equipo.
-2. Promedio de TARJETAS AMARILLAS y ROJAS por partido de cada equipo.
+        for date_str in [today_str, tomorrow_str]:
+            try:
+                url = f"https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d={date_str}&s=Soccer"
+                r = requests.get(url, timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    events = data.get("events") or []
+                    raw_events.extend(events)
+            except Exception:
+                pass
 
-Con base en ese análisis estadístico histórico, proporciona:
-- Un mercado estadístico sugerido (ejemplo: "Más de 9.5 Córners" o "Más de 3.5 Tarjetas")
-- Una probabilidad estadística estimada (entre 0.40 y 0.90) basada en la consistencia histórica de los equipos
-- Un nivel de consistencia estadística: "Verde" (alta consistencia, prob > 0.65), "Amarillo" (moderada, 0.50-0.65), "Rojo" (baja, < 0.50)
+        # Ampliar con ligas activas más importantes
+        MAJOR_LEAGUES = {
+            "MLS": 4346,
+            "Liga MX": 4350,
+            "Brazilian Serie A": 4351,
+            "Copa Libertadores": 4480,
+            "Eredivisie": 4337,
+            "Liga Portugal": 4344,
+            "Scottish Premiership": 4330,
+            "USL Championship": 4397,
+            "Copa Sudamericana": 4481,
+            "Argentine Primera": 4406,
+            "Colombian Primera": 4461,
+        }
+        seen_ids = {e.get("idEvent") for e in raw_events if e.get("idEvent")}
+        for league_name, league_id in MAJOR_LEAGUES.items():
+            try:
+                url2 = f"https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id={league_id}"
+                r2 = requests.get(url2, timeout=8)
+                if r2.status_code == 200:
+                    data2 = r2.json()
+                    for ev in (data2.get("events") or []):
+                        ev_date = ev.get("dateEvent", "")
+                        ev_id = ev.get("idEvent")
+                        if ev_date in [today_str, tomorrow_str] and ev_id not in seen_ids:
+                            raw_events.append(ev)
+                            seen_ids.add(ev_id)
+            except Exception:
+                pass
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, con esta estructura exacta:
-{{
-  "matches": [
-    {{
-      "match_name": "Local vs Visitante",
-      "league": "Nombre Liga",
-      "date_time": "YYYY-MM-DD HH:MM",
-      "recommended_market": "Más de 9.5 Córners",
-      "recommended_odds": 1.85,
-      "estimated_prob": 0.70,
-      "risk_level": "Verde"
-    }}
-  ]
-}}
+        if not raw_events:
+            return {"status": "error", "message": "No se encontraron partidos en TheSportsDB para hoy o mañana.", "count": 0}
 
-IMPORTANTE: Responde SOLO con el JSON. Nada de texto antes ni después del JSON. No uses bloques de código markdown."""
-
-        response = None
-        models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
-        import time
-        last_error = None
-
-        for model_name in models_to_try:
-            for attempt in range(3):
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                        config=genai_types.GenerateContentConfig(
-                            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
-                        )
-                    )
-                    if response and response.text:
-                        break
-                except Exception as e:
-                    last_error = e
-                    err_str = str(e)
-                    if "503" in err_str or "UNAVAILABLE" in err_str or "high demand" in err_str:
-                        time.sleep(2 * (attempt + 1))
-                    else:
-                        break
-            if response and response.text:
-                break
-
-        if not response or not response.text:
-            return {"status": "error", "message": f"Servidor Gemini ocupado temporalmente. Por favor reintenta en unos segundos. Detalle: {last_error}", "count": 0}
-        
-        raw_text = response.text.strip()
-        
-        # Extraer JSON de forma robusta
-        import re
-        json_str = raw_text
-
-        # 1. Si está envuelto en bloque ```json ... ```
-        if "```" in raw_text:
-            match_code = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text, re.IGNORECASE)
-            if match_code:
-                json_str = match_code.group(1).strip()
-
-        # 2. Si aún contiene caracteres alrededor, buscar la primera { y la última }
-        if not (json_str.startswith("{") and json_str.endswith("}")):
-            match_obj = re.search(r'\{[\s\S]*\}', json_str)
-            if match_obj:
-                json_str = match_obj.group(0).strip()
-
-        try:
-            data = json.loads(json_str)
-        except Exception as e:
-            print(f"[Gemini Discover] Error al parsear JSON. Raw: {raw_text[:300]}")
-            return {"status": "error", "message": f"Gemini respondió pero el formato no fue JSON válido. Reintenta por favor.", "count": 0}
-
-        matches = data.get("matches", []) if isinstance(data, dict) else []
-        
-        if not matches:
-            return {"status": "error", "message": "Gemini no encontró partidos.", "count": 0}
-
-        # Clear existing and insert new
-        db.query(models.Fixture).delete()
-        db.commit()
-        
+        # ── 2. Construir lista de partidos ────────────────────────────────────
         def safe_float(val, default):
             try:
                 return float(val) if val is not None else default
             except (ValueError, TypeError):
                 return default
 
+        matches_list = []
+        for ev in raw_events[:40]:
+            home = ev.get("strHomeTeam", "")
+            away = ev.get("strAwayTeam", "")
+            league = ev.get("strLeague", "Soccer")
+            ev_date = ev.get("dateEvent", today_str)
+            ev_time = ev.get("strTime") or ev.get("strTimeLocal") or "20:00:00"
+            ev_time_fmt = str(ev_time)[:5] if ev_time else "20:00"
+            if home and away:
+                matches_list.append({
+                    "match_name": f"{home} vs {away}",
+                    "league": league,
+                    "date_time": f"{ev_date} {ev_time_fmt}",
+                })
+
+        if not matches_list:
+            return {"status": "error", "message": "No se encontraron partidos válidos.", "count": 0}
+
+        # ── 3. Analizar con Groq en batch ─────────────────────────────────────
+        matches_json_str = json.dumps(matches_list, ensure_ascii=False)
+        groq_prompt = (
+            "Eres un analista estadístico de fútbol experto en tiros de esquina (corners) y tarjetas. "
+            "Para cada partido de la lista, estima basándote en el historial de los equipos:\n"
+            "- recommended_market: mercado sugerido (ej: 'Más de 9.5 Córners', 'Ambos equipos +3 Tarjetas')\n"
+            "- recommended_odds: cuota estimada entre 1.50 y 3.50\n"
+            "- estimated_prob: probabilidad entre 0.40 y 0.90\n"
+            "- risk_level: 'Verde' (prob>0.65), 'Amarillo' (0.50-0.65), 'Rojo' (<0.50)\n\n"
+            "Partidos:\n" + matches_json_str +
+            '\n\nResponde SOLO con JSON:\n{"results": [{"match_name": "...", "recommended_market": "...", "recommended_odds": 1.85, "estimated_prob": 0.70, "risk_level": "Verde"}]}'
+        )
+
+        try:
+            from groq import Groq as GroqClient
+            groq_client = GroqClient(api_key=groq_key)
+            groq_response = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": groq_prompt}],
+                temperature=0.3,
+                max_tokens=4000,
+            )
+            raw_groq = groq_response.choices[0].message.content.strip()
+        except Exception as e:
+            return {"status": "error", "message": f"Error en Groq: {e}", "count": 0}
+
+        # Extraer JSON de Groq
+        groq_json_str = raw_groq
+        if "```" in groq_json_str:
+            mc = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', groq_json_str, re.IGNORECASE)
+            if mc:
+                groq_json_str = mc.group(1).strip()
+        if not (groq_json_str.startswith("{") and groq_json_str.endswith("}")):
+            mo = re.search(r'\{[\s\S]*\}', groq_json_str)
+            if mo:
+                groq_json_str = mo.group(0).strip()
+
+        try:
+            groq_data = json.loads(groq_json_str)
+            results_list = groq_data.get("results", [])
+        except Exception:
+            results_list = []
+
+        results_map = {r.get("match_name", ""): r for r in results_list}
+
+        # ── 4. Guardar en base de datos ───────────────────────────────────────
+        db.query(models.Fixture).delete()
+        db.commit()
+
         fixtures_created = []
-        for m in matches:
-            match_name = m.get("match_name", "")
-            if not match_name or " vs " not in match_name:
-                continue
+        for m in matches_list:
+            match_name = m["match_name"]
+            analysis = results_map.get(match_name, {})
+            prob = round(safe_float(analysis.get("estimated_prob"), 0.55), 4)
+            raw_risk = str(analysis.get("risk_level", "")).strip().capitalize() if analysis.get("risk_level") else ""
 
-            prob = round(safe_float(m.get("estimated_prob"), 0.55), 4)
-            raw_risk = str(m.get("risk_level", "")).strip().capitalize() if m.get("risk_level") else ""
-
-            # Calcular nivel de riesgo dinámicamente si no coincide o falta
             if prob > 0.65:
                 risk_level = "Verde"
             elif prob >= 0.50:
                 risk_level = "Amarillo"
             else:
                 risk_level = "Rojo"
-
-            # Si Gemini proporcionó un riesgo válido Verde/Amarillo/Rojo, respetarlo
             if raw_risk in ["Verde", "Amarillo", "Rojo"]:
                 risk_level = raw_risk
 
             db_fixture = models.Fixture(
                 match_name=match_name,
-                league=m.get("league", "Soccer") or "Soccer",
-                date_time=m.get("date_time", today.strftime("%Y-%m-%d 20:00")) or today.strftime("%Y-%m-%d 20:00"),
-                market=m.get("recommended_market", "Córners / Tarjetas") or "Córners / Tarjetas",
-                odds=round(safe_float(m.get("recommended_odds"), 1.85), 2),
+                league=m["league"],
+                date_time=m["date_time"],
+                market=analysis.get("recommended_market") or "Córners / Tarjetas",
+                odds=round(safe_float(analysis.get("recommended_odds"), 1.85), 2),
                 probability=prob,
                 risk_level=risk_level,
             )
             db.add(db_fixture)
             fixtures_created.append(db_fixture)
-        
+
         db.commit()
         for fix in fixtures_created:
             db.refresh(fix)
 
         global data_source
-        data_source = "Gemini Search"
+        data_source = "TheSportsDB + Groq"
+        log_usage(db, username="sistema", ai_service="groq", action="discover",
+                  tokens_used=len(groq_prompt) // 4)
 
-        # Estimar tokens consumidos (prompt + respuesta en caracteres / 4 ≈ tokens)
-        estimated_tokens = (len(prompt) + len(raw_text)) // 4
-        log_usage(db, username="sistema", ai_service="gemini", action="discover",
-                  tokens_used=estimated_tokens)
+        return {"status": "success", "message": f"Se encontraron {len(fixtures_created)} partidos reales.", "count": len(fixtures_created)}
 
-        return {"status": "success", "message": f"Gemini encontró {len(fixtures_created)} partidos.", "count": len(fixtures_created)}
-
-    except json.JSONDecodeError as e:
-        return {"status": "error", "message": f"Error al parsear respuesta de Gemini: {e}", "count": 0}
     except Exception as e:
-        return {"status": "error", "message": f"Error en Gemini Search: {e}", "count": 0}
+        return {"status": "error", "message": f"Error al obtener partidos: {e}", "count": 0}
 
 def gemini_filter_fixtures(fixtures: list) -> list:
     """
