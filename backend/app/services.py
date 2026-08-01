@@ -373,29 +373,33 @@ def gemini_discover_matches(db: Session) -> dict:
         today_str = today.strftime("%A %d de %B de %Y")
         tomorrow_str = tomorrow.strftime("%A %d de %B de %Y")
 
-        prompt = f"""Obtén una lista completa de partidos de fútbol profesional para HOY ({today_str}) y MAÑANA ({tomorrow_str}) de ligas importantes de todo el mundo (LaLiga, Premier League, Serie A, Bundesliga, Ligue 1, Liga MX, Champions League, Copa Libertadores, etc.).
+        prompt = f"""Usa Google Search para encontrar los partidos de fútbol profesional programados para HOY ({today_str}) y MAÑANA ({tomorrow_str}) en las principales ligas del mundo: LaLiga, Premier League, Serie A, Bundesliga, Ligue 1, Liga MX, Champions League, Copa Libertadores, MLS, y otras ligas importantes.
 
-Para cada partido, enfócate EXCLUSIVAMENTE en estimar mercados de TIROS DE ESQUINA (Corners) y TARJETAS (Amarillas/Rojas).
-No uses mercados de ganador (1X2) ni goles. Centra la sugerencia solo en córners o tarjetas.
+Para cada partido encontrado, analiza estadísticamente el historial reciente de los equipos en cuanto a:
+1. Promedio de TIROS DE ESQUINA (Corners) por partido de cada equipo.
+2. Promedio de TARJETAS AMARILLAS y ROJAS por partido de cada equipo.
 
-Responde obligatoriamente en formato JSON válido con la siguiente estructura:
+Con base en ese análisis estadístico histórico, proporciona:
+- Un mercado estadístico sugerido (ejemplo: "Más de 9.5 Córners" o "Más de 3.5 Tarjetas")
+- Una probabilidad estadística estimada (entre 0.40 y 0.90) basada en la consistencia histórica de los equipos
+- Un nivel de consistencia estadística: "Verde" (alta consistencia, prob > 0.65), "Amarillo" (moderada, 0.50-0.65), "Rojo" (baja, < 0.50)
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin explicaciones adicionales, con esta estructura exacta:
 {{
   "matches": [
     {{
       "match_name": "Local vs Visitante",
       "league": "Nombre Liga",
       "date_time": "YYYY-MM-DD HH:MM",
-      "recommended_market": "Más de 8.5 Córners",
+      "recommended_market": "Más de 9.5 Córners",
       "recommended_odds": 1.85,
-      "estimated_prob": 0.65,
+      "estimated_prob": 0.70,
       "risk_level": "Verde"
     }}
   ]
 }}
-Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
-- "Verde": Riesgo Bajo (alta consistencia estadística en córners/tarjetas, prob > 0.65)
-- "Amarillo": Riesgo Medio (tendencia moderada, prob 0.50-0.65)
-- "Rojo": Riesgo Alto (equipos impredecibles en tarjetas/córners, prob < 0.50)."""
+
+IMPORTANTE: Responde SOLO con el JSON. Nada de texto antes ni después del JSON. No uses bloques de código markdown."""
 
         response = None
         models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
@@ -429,22 +433,28 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
         
         raw_text = response.text.strip()
         
-        # Extraer JSON de forma robusta con Regex (soporta texto antes/después y markdown codeblocks)
+        # Extraer JSON de forma robusta
         import re
-        json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(0)
-        else:
-            json_str = raw_text
+        json_str = raw_text
 
-        # Limpiar posibles delimitadores de bloque de código markdown
-        if json_str.startswith("```"):
-            json_str = re.sub(r'^```(?:json)?\s*', '', json_str, flags=re.IGNORECASE)
-        if json_str.endswith("```"):
-            json_str = re.sub(r'\s*```$', '', json_str)
-        json_str = json_str.strip()
+        # 1. Si está envuelto en bloque ```json ... ```
+        if "```" in raw_text:
+            match_code = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text, re.IGNORECASE)
+            if match_code:
+                json_str = match_code.group(1).strip()
 
-        data = json.loads(json_str)
+        # 2. Si aún contiene caracteres alrededor, buscar la primera { y la última }
+        if not (json_str.startswith("{") and json_str.endswith("}")):
+            match_obj = re.search(r'\{[\s\S]*\}', json_str)
+            if match_obj:
+                json_str = match_obj.group(0).strip()
+
+        try:
+            data = json.loads(json_str)
+        except Exception as e:
+            print(f"[Gemini Discover] Error al parsear JSON. Raw: {raw_text[:300]}")
+            return {"status": "error", "message": f"Gemini respondió pero el formato no fue JSON válido. Reintenta por favor.", "count": 0}
+
         matches = data.get("matches", []) if isinstance(data, dict) else []
         
         if not matches:
@@ -454,14 +464,20 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
         db.query(models.Fixture).delete()
         db.commit()
         
+        def safe_float(val, default):
+            try:
+                return float(val) if val is not None else default
+            except (ValueError, TypeError):
+                return default
+
         fixtures_created = []
         for m in matches:
             match_name = m.get("match_name", "")
             if not match_name or " vs " not in match_name:
                 continue
 
-            prob = round(float(m.get("estimated_prob", 0.55)), 4)
-            raw_risk = str(m.get("risk_level", "")).strip().capitalize()
+            prob = round(safe_float(m.get("estimated_prob"), 0.55), 4)
+            raw_risk = str(m.get("risk_level", "")).strip().capitalize() if m.get("risk_level") else ""
 
             # Calcular nivel de riesgo dinámicamente si no coincide o falta
             if prob > 0.65:
@@ -477,10 +493,10 @@ Reglas de riesgo basadas únicamente en tiros de esquina y tarjetas:
 
             db_fixture = models.Fixture(
                 match_name=match_name,
-                league=m.get("league", "Soccer"),
-                date_time=m.get("date_time", today.strftime("%Y-%m-%d 20:00")),
-                market=m.get("recommended_market", "Córners / Tarjetas"),
-                odds=round(float(m.get("recommended_odds", 1.85)), 2),
+                league=m.get("league", "Soccer") or "Soccer",
+                date_time=m.get("date_time", today.strftime("%Y-%m-%d 20:00")) or today.strftime("%Y-%m-%d 20:00"),
+                market=m.get("recommended_market", "Córners / Tarjetas") or "Córners / Tarjetas",
+                odds=round(safe_float(m.get("recommended_odds"), 1.85), 2),
                 probability=prob,
                 risk_level=risk_level,
             )
